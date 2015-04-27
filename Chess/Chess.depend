@@ -332,3 +332,11 @@
 	"begin_code.h"
 	"close_code.h"
 
+1430157931 source:c:\users\ian\documents\github\chess-ai\chess\main.cpp
+	<iostream>
+	<vector>
+	<SDL.h>
+	<SDL_ttf.h>
+	<SDL_image.h>
+	<sstream>
+

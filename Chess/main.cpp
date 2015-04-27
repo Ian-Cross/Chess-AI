@@ -10,21 +10,22 @@ using namespace std;
 //creating piece structure
 struct Piece
 {
-    int BoardLocX;
-    int BoardLocY;
-    int Value;
-    bool FirstMove;
-    SDL_Rect Rect;
-    SDL_Texture* Texture;
+    int BoardLocX; //0-7 the actual square its on
+    int BoardLocY; //0-7 the actual square its on
+    int Value; //number to detirmine the piece, negative for black positive for white
+    bool FirstMove; //if the piece has already moved, for speacial moves like pawn
+    SDL_Rect Rect; //Coordinates of the piece on the screen
+    SDL_Texture* Texture; //Picture of the piece
 };
 
+//Declaring Global Variables
 int board[8][8];
 Piece Pieces[32];
-int ScreenHeight = 0;
-int ScreenWidth = 0;
-int BoardHeight = 0;
-int BoardWidth = 0;
-int SquareSize = 0;
+int ScreenHeight;
+int ScreenWidth;
+int BoardHeight;
+int BoardWidth;
+int SquareSize;
 int mousex;
 int mousey;
 
@@ -64,8 +65,14 @@ int main(int argc, char* args[])
     SDL_Rect TextRect;
     TextRect.x = 700;
     TextRect.y = 50;
-    TextRect.w = 32;
+    TextRect.w = 100;
     TextRect.h = 32;
+
+    SDL_Rect TextRect2;
+    TextRect2.x = 700;
+    TextRect2.y = 90;
+    TextRect2.w = 100;
+    TextRect2.h = 32;
 
     SDL_Event e;
     bool quit;
@@ -92,11 +99,11 @@ int main(int argc, char* args[])
 
         if (Mousedown && SelectedPiece < 0 )
         {
-            if (mousex >= 50 && mousex < BoardHeight && mousey >= 50 && mousey < BoardHeight)
+            if (mousex >= 50 && mousex < BoardHeight+50 && mousey >= 50 && mousey < BoardHeight)
                 SelectedPiece = SelectPiece(mousex,mousey);
         }
 
-        if (SelectedPiece > 0)
+        if (SelectedPiece >= 0)
         {
             Pieces[SelectedPiece].Rect.x = mousex-SquareSize/2;
             Pieces[SelectedPiece].Rect.y = mousey-SquareSize/2;
@@ -104,6 +111,9 @@ int main(int argc, char* args[])
 
         SDL_RenderClear(Renderer);
         SDL_RenderCopy(Renderer,BoardTexture,NULL,&BoardRect);
+        CoordTexture = LoadText(Pieces[SelectedPiece].Rect.x,Pieces[SelectedPiece].Rect.y);
+        SDL_RenderCopy(Renderer,CoordTexture,NULL,&TextRect2);
+        CoordTexture = LoadText(mousex,mousey);
         SDL_RenderCopy(Renderer,CoordTexture,NULL,&TextRect);
 
         for (int i = 0; i < 32; i++)
@@ -223,7 +233,11 @@ int SelectPiece(int mousex,int mousey)
         int Highx = lowx+SquareSize;
         int Highy = lowy+SquareSize;
         if (mousex >= lowx && mousex < Highx && mousey >= lowy && mousey < Highy)
+        {
+            cout << Pieces[i].Value << " has been selected " << i << endl;
             return i;
+        }
+
     }
     return -1;
 }
@@ -319,13 +333,20 @@ SDL_Texture* LoadText(int X, int Y)
 {
     SDL_Texture* newTexture = NULL;
 
-    string x,y;
+    string x,y,temp;
 
     stringstream pp;
     pp << X;
     pp >> x;
 
-    SDL_Surface* loadedSurface = TTF_RenderText_Solid(Font,x.c_str(),White);
+    pp.clear();
+
+    pp << Y;
+    pp >> y;
+
+    temp = "( " + x + " , " + y + " )";
+
+    SDL_Surface* loadedSurface = TTF_RenderText_Solid(Font,temp.c_str(),White);
 
     newTexture = SDL_CreateTextureFromSurface(Renderer, loadedSurface);
 
