@@ -7,6 +7,7 @@
 
 using namespace std;
 
+//creating piece structure
 struct Piece
 {
     int BoardLocX;
@@ -78,13 +79,9 @@ int main(int argc, char* args[])
             SDL_GetMouseState(&mousex,&mousey);
 
             if( e.type == SDL_QUIT )
-            {
                 quit = true;
-            }
             if (e.type == SDL_MOUSEBUTTONDOWN)
-            {
                 Mousedown = true;
-            }
             if (e.type == SDL_MOUSEBUTTONUP)
             {
                 Mousedown = false;
@@ -96,9 +93,7 @@ int main(int argc, char* args[])
         if (Mousedown && SelectedPiece < 0 )
         {
             if (mousex >= 50 && mousex < BoardHeight && mousey >= 50 && mousey < BoardHeight)
-            {
                 SelectedPiece = SelectPiece(mousex,mousey);
-            }
         }
 
         if (SelectedPiece > 0)
@@ -112,9 +107,7 @@ int main(int argc, char* args[])
         SDL_RenderCopy(Renderer,CoordTexture,NULL,&TextRect);
 
         for (int i = 0; i < 32; i++)
-        {
             SDL_RenderCopy(Renderer,Pieces[i].Texture,NULL,&Pieces[i].Rect);
-        }
 
         SDL_RenderPresent(Renderer);
     }
@@ -198,12 +191,8 @@ void SetPositions (Piece Pieces[32],int Board[8][8])
     assignValues(3,7,90,3*SquareSize+50,7*SquareSize+50,"Pictures/WhiteQueen.gif",28);
 
     for (int y = 0; y < 8; y++)
-    {
         for (int x = 0; x < 8; x++)
-        {
             board[x][y] = 0;
-        }
-    }
 }
 
 void assignValues (int xtrack, int ytrack, int Value, int Rectx, int Recty, string path , int i)
@@ -234,9 +223,7 @@ int SelectPiece(int mousex,int mousey)
         int Highx = lowx+SquareSize;
         int Highy = lowy+SquareSize;
         if (mousex >= lowx && mousex < Highx && mousey >= lowy && mousey < Highy)
-        {
             return i;
-        }
     }
     return -1;
 }
@@ -256,9 +243,7 @@ void PrintBoard (Piece Pieces[32],int Board[8][8])
     for (int y = 0; y < 8; y++)
     {
         for (int x = 0; x < 8; x++)
-        {
             cout << Board[x][y] << " ";
-        }
         cout << endl;
     }
 }
@@ -319,15 +304,11 @@ SDL_Texture* LoadTexture( string path )
     SDL_Surface* loadedSurface = IMG_Load(path.c_str());
 
     if (loadedSurface == NULL)
-    {
         cout << "Image Didnt Load" << endl;
-    }
 
     newTexture = SDL_CreateTextureFromSurface(Renderer,loadedSurface);
     if (newTexture == NULL)
-    {
         cout << "Image Didnt Load" << endl;
-    }
 
     SDL_FreeSurface(loadedSurface);
 
