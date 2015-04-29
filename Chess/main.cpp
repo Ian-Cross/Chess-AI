@@ -7,38 +7,44 @@
 
 using namespace std;
 
-//creating piece structure
-struct Piece
+typedef enum {blank1,pawn11,rook11,knight,bishop,king11,queen1} TPiece;
+
+//creating PieceInfo structure
+struct PieceInfo
 {
-    int BoardLocX; //0-7 the actual square its on
-    int BoardLocY; //0-7 the actual square its on
-    int Value; //number to detirmine the piece, negative for black positive for white
+    TPiece TypeOfPiece; //Determines the piece
     bool FirstMove; //if the piece has already moved, for speacial moves like pawn
+    bool IsWhite; //Determine the colour of the piece
     SDL_Rect Rect; //Coordinates of the piece on the screen
+    SDL_Rect OldLocation; //Hold the previous Co-ordinates
     SDL_Texture* Texture; //Picture of the piece
 };
 
 //Declaring Global Variables
-int board[8][8];
-Piece Pieces[32];
+TPiece board[8][8];
+PieceInfo Pieces[32];
 int ScreenHeight;
 int ScreenWidth;
 int BoardHeight;
 int BoardWidth;
 int SquareSize;
+const int Offset = 50;
 int mousex;
 int mousey;
 
 //Functions
-void PrintBoard (Piece Pieces[32],int Board[8][8]);
-void SetPositions (Piece Pieces[32],int Board[8][8]);
-void assignValues (int xtrack, int ytrack, int Value, int Rectx, int Recty, string path, int i);
+void PrintBoard (PieceInfo Pieces[32],TPiece Board[8][8]);
+void SetPositions (PieceInfo Pieces[32],TPiece Board[8][8]);
+void assignValues (TPiece WhatPiece, int Rectx, int Recty, string path, int i,bool isWhite);
+void PieceSnapToSquare (PieceInfo Pieces[32],int selectedPiece,int mousex,int mousey);
 int SelectPiece(int mousex,int mousey);
-void LoadMedia();
 SDL_Texture* LoadTexture( string path );
 SDL_Texture* LoadText (int X,int Y);
 void StartSDL ();
 void CloseSDL ();
+void LoadMedia();
+bool IsvalidMove(PieceInfo Pieces[32],int selectedPiece);
+bool PawnMove(PieceInfo Pieces[32],int selectedPiece);
 
 //Piece and Board Textures
 SDL_Renderer* Renderer = NULL;
@@ -50,15 +56,15 @@ TTF_Font *gFont = NULL;
 TTF_Font *Font = NULL;
 
 int main(int argc, char* args[])
-{
+ {
     StartSDL();
     SDL_GetMouseState(&mousex,&mousey);
     LoadMedia();
     SetPositions(Pieces,board);
 
     SDL_Rect BoardRect;
-    BoardRect.x = 50;
-    BoardRect.y = 50;
+    BoardRect.x = Offset;
+    BoardRect.y = Offset;
     BoardRect.w = BoardHeight;
     BoardRect.h = BoardHeight;
 
@@ -92,14 +98,22 @@ int main(int argc, char* args[])
             if (e.type == SDL_MOUSEBUTTONUP)
             {
                 Mousedown = false;
+                if (SelectedPiece >= 0)
+                {
+                    PieceSnapToSquare(Pieces,SelectedPiece,mousex,mousey);
+                    if(!IsvalidMove(Pieces,SelectedPiece))
+                    {
+                        Pieces[SelectedPiece].Rect = Pieces[SelectedPiece].OldLocation;
+                    }
+                }
                 SelectedPiece = -1;
             }
-
         }
 
         if (Mousedown && SelectedPiece < 0 )
         {
-            if (mousex >= 50 && mousex < BoardHeight+50 && mousey >= 50 && mousey < BoardHeight)
+            //Checking to see if the mouse is on the board
+            if (mousex >= Offset && mousex < BoardHeight+Offset && mousey >= Offset && mousey < BoardHeight)
                 SelectedPiece = SelectPiece(mousex,mousey);
         }
 
@@ -129,13 +143,13 @@ int main(int argc, char* args[])
     return 0;
 }
 
-void SetPositions (Piece Pieces[32],int Board[8][8])
+void SetPositions (PieceInfo Pieces[32],TPiece Board[8][8])
 {
     int xtrack = 0;
 
     for (int i = 0; i < 8; i++)
     {
-        assignValues(xtrack,6,10,xtrack*SquareSize+50,6*SquareSize+50,"Pictures/WhitePawn.gif",i);
+        assignValues(pawn11,xtrack*SquareSize+Offset,6*SquareSize+Offset,"Pictures/WhitePawn.gif",i,true);
         xtrack++;
     }
 
@@ -143,7 +157,7 @@ void SetPositions (Piece Pieces[32],int Board[8][8])
 
     for (int i = 8; i < 16; i++)
     {
-        assignValues(xtrack,1,-10,xtrack*SquareSize+50,SquareSize+50,"Pictures/BlackPawn.gif",i);
+        assignValues(pawn11,xtrack*SquareSize+Offset,SquareSize+Offset,"Pictures/BlackPawn.gif",i,false);
         xtrack ++;
     }
 
@@ -151,7 +165,7 @@ void SetPositions (Piece Pieces[32],int Board[8][8])
 
     for (int i = 16; i < 18; i++)
     {
-        assignValues(xtrack,7,50,xtrack*SquareSize+50,7*SquareSize+50,"Pictures/WhiteRook.gif",i);
+        assignValues(rook11,xtrack*SquareSize+Offset,7*SquareSize+Offset,"Pictures/WhiteRook.gif",i,true);
         xtrack += 7;
     }
 
@@ -159,7 +173,7 @@ void SetPositions (Piece Pieces[32],int Board[8][8])
 
     for (int i = 18; i < 20; i++)
     {
-        assignValues(xtrack,0,-50,xtrack*SquareSize+50,50,"Pictures/BlackRook.gif",i);
+        assignValues(rook11,xtrack*SquareSize+Offset,Offset,"Pictures/BlackRook.gif",i,false);
         xtrack += 7;
     }
 
@@ -167,7 +181,7 @@ void SetPositions (Piece Pieces[32],int Board[8][8])
 
     for (int i = 20; i < 22; i++)
     {
-        assignValues(xtrack,7,30,xtrack*SquareSize+50,7*SquareSize+50,"Pictures/WhiteKnight.gif",i);
+        assignValues(knight,xtrack*SquareSize+Offset,7*SquareSize+Offset,"Pictures/WhiteKnight.gif",i,true);
         xtrack += 5;
     }
 
@@ -175,7 +189,7 @@ void SetPositions (Piece Pieces[32],int Board[8][8])
 
     for (int i = 22; i < 24; i++)
     {
-        assignValues(xtrack,0,-30,xtrack*SquareSize+50,50,"Pictures/BlackKnight.gif",i);
+        assignValues(knight,xtrack*SquareSize+Offset,Offset,"Pictures/BlackKnight.gif",i,false);
         xtrack += 5;
     }
 
@@ -183,7 +197,7 @@ void SetPositions (Piece Pieces[32],int Board[8][8])
 
     for (int i = 24; i < 26; i++)
     {
-        assignValues(xtrack,7,32,xtrack*SquareSize+50,7*SquareSize+50,"Pictures/WhiteBishop.gif",i);
+        assignValues (bishop,xtrack*SquareSize+Offset,7*SquareSize+Offset,"Pictures/WhiteBishop.gif",i,true);
         xtrack += 3;
     }
 
@@ -191,21 +205,36 @@ void SetPositions (Piece Pieces[32],int Board[8][8])
 
     for (int i = 26; i < 28; i++)
     {
-        assignValues(xtrack,0,-32,xtrack*SquareSize+50,50,"Pictures/BlackBishop.gif",i);
+        assignValues(bishop,xtrack*SquareSize+Offset,Offset,"Pictures/BlackBishop.gif",i,false);
         xtrack += 3;
     }
 
-    assignValues(4,0,-1111,4*SquareSize+50,50,"Pictures/BlackKing.gif",31);
-    assignValues(4,7,1111,4*SquareSize+50,7*SquareSize+50,"Pictures/WhiteKing.gif",30);
-    assignValues(3,0,-90,3*SquareSize+50,50,"Pictures/BlackQueen.gif",29);
-    assignValues(3,7,90,3*SquareSize+50,7*SquareSize+50,"Pictures/WhiteQueen.gif",28);
+    assignValues(king11,4*SquareSize+Offset,Offset,"Pictures/BlackKing.gif",31,false);
+    assignValues(king11,4*SquareSize+Offset,7*SquareSize+Offset,"Pictures/WhiteKing.gif",30,true);
+    assignValues(queen1,3*SquareSize+Offset,Offset,"Pictures/BlackQueen.gif",29,false);
+    assignValues(queen1,3*SquareSize+Offset,7*SquareSize+Offset,"Pictures/WhiteQueen.gif",28,true);
 
     for (int y = 0; y < 8; y++)
         for (int x = 0; x < 8; x++)
-            board[x][y] = 0;
+            board[x][y] = blank1;
 }
 
-void assignValues (int xtrack, int ytrack, int Value, int Rectx, int Recty, string path , int i)
+void PieceSnapToSquare (PieceInfo Pieces[32],int selectedPiece,int mousex,int mousey)
+{
+    for (int i = 0; i <= 7; i++)
+    {
+        if (mousex >= i*SquareSize+Offset && mousex < (i+1)*SquareSize+Offset)
+        {
+            Pieces[selectedPiece].Rect.x = i*SquareSize+50;
+        }
+        if (mousey >= i*SquareSize+Offset && mousey < (i+1)*SquareSize+Offset)
+        {
+            Pieces[selectedPiece].Rect.y = i*SquareSize+50;
+        }
+    }
+}
+
+void assignValues (TPiece WhatPiece, int Rectx, int Recty, string path , int i,bool isWhite)
 {
     SDL_Rect Rect;
     Rect.x = Rectx;
@@ -217,9 +246,7 @@ void assignValues (int xtrack, int ytrack, int Value, int Rectx, int Recty, stri
 
     Texture = LoadTexture(path);
 
-    Pieces[i].BoardLocX = xtrack;
-    Pieces[i].BoardLocY = ytrack;
-    Pieces[i].Value = Value;
+    Pieces[i].TypeOfPiece = WhatPiece;
     Pieces[i].Texture = Texture;
     Pieces[i].Rect = Rect;
 }
@@ -234,7 +261,8 @@ int SelectPiece(int mousex,int mousey)
         int Highy = lowy+SquareSize;
         if (mousex >= lowx && mousex < Highx && mousey >= lowy && mousey < Highy)
         {
-            cout << Pieces[i].Value << " has been selected " << i << endl;
+            cout << Pieces[i].TypeOfPiece << " has been selected " << i << endl;
+            Pieces[i].OldLocation = Pieces[i].Rect;
             return i;
         }
 
@@ -242,16 +270,17 @@ int SelectPiece(int mousex,int mousey)
     return -1;
 }
 
-void PrintBoard (Piece Pieces[32],int Board[8][8])
+void PrintBoard (PieceInfo Pieces[32],TPiece Board[8][8])
 {
     int xtrack = 0;
     int ytrack = 0;
 
     for (int i = 0; i < 32; i++)
     {
-        xtrack = Pieces[i].BoardLocX;
-        ytrack = Pieces[i].BoardLocY;
-        Board[xtrack][ytrack] = Pieces[i].Rect.x;
+        xtrack = (Pieces[i].Rect.x-50)/SquareSize;
+        ytrack = (Pieces[i].Rect.y-50)/SquareSize;
+
+        Board[xtrack][ytrack] = Pieces[i].TypeOfPiece;
     }
 
     for (int y = 0; y < 8; y++)
@@ -262,6 +291,31 @@ void PrintBoard (Piece Pieces[32],int Board[8][8])
     }
 }
 
+bool IsvalidMove(PieceInfo Pieces[32],int selectedPiece)
+{
+    for (int i = 0; i < 32; i++)
+    {
+        if (i == selectedPiece) continue;
+
+        if (Pieces[selectedPiece].Rect.x == Pieces[i].Rect.x && Pieces[selectedPiece].Rect.y == Pieces[i].Rect.y)
+        {
+            cout << Pieces[i].TypeOfPiece << " (" << Pieces[i].Rect.x << "," << Pieces[i].Rect.y  << ") " << " Is in the way" << endl;
+            return false;
+        }
+    }
+
+    if (Pieces[selectedPiece].TypeOfPiece == pawn11)
+    {
+        PawnMove(Pieces,selectedPiece);
+    }
+
+    return true;
+}
+
+bool PawnMove(PieceInfo Pieces[32],int selectedPiece)
+{
+
+}
 void StartSDL()
 {
     SDL_Init( SDL_INIT_EVERYTHING );
