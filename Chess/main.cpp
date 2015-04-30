@@ -7,7 +7,7 @@
 
 using namespace std;
 
-typedef enum {blank1,pawn11,rook11,knight,bishop,king11,queen1} TPiece;
+typedef enum {blank1,pawn11,rook11,knight,bishop,king11,queen1} TPiece; //defining the types of pieces
 
 //creating PieceInfo structure
 struct PieceInfo
@@ -22,29 +22,27 @@ struct PieceInfo
 
 //Declaring Global Variables
 TPiece board[8][8];
-PieceInfo Pieces[32];
-int ScreenHeight;
-int ScreenWidth;
-int BoardHeight;
-int BoardWidth;
-int SquareSize;
-const int Offset = 50;
-int mousex;
-int mousey;
+PieceInfo Pieces[32]; //Creates and area of structures, one per piece
+int ScreenHeight; //the height of the display window, defined during runtime
+int ScreenWidth; //the width of the display window, defined during runtime
+int BoardHeight; //the Height of the Playing board, defined during runtime
+int SquareSize; //The width and height of each individual square on the board, defined during runtime
+const int Offset = 50; //The small buffer zone between the top, and left side of the window and the board
+int mousex; //Global variables to hold the mouse's x coordinate
+int mousey; //Global variables to hold the mouse's y coordinate
 
 //Functions
 void PrintBoard (PieceInfo Pieces[32],TPiece Board[8][8]);
-void SetPositions (PieceInfo Pieces[32],TPiece Board[8][8]);
-void assignValues (TPiece WhatPiece, int Rectx, int Recty, string path, int i,bool isWhite);
-void PieceSnapToSquare (PieceInfo Pieces[32],int selectedPiece,int mousex,int mousey);
-int SelectPiece(int mousex,int mousey);
-SDL_Texture* LoadTexture( string path );
-SDL_Texture* LoadText (int X,int Y);
-void StartSDL ();
-void CloseSDL ();
-void LoadMedia();
-bool IsvalidMove(PieceInfo Pieces[32],int selectedPiece);
-bool PawnMove(PieceInfo Pieces[32],int selectedPiece);
+void SetPositions (PieceInfo Pieces[32],TPiece Board[8][8]); //Initially gives values in the structures on the pieces
+void PieceSnapToSquare (PieceInfo Pieces[32],int selectedPiece,int mousex,int mousey); //After the piece is dropped it aligns in onto the square below the mouse
+int SelectPiece(int mousex,int mousey); //When the user clicks on a piece, it returns the piece's structure for manipulation
+bool IsvalidMove(PieceInfo Pieces[32],int selectedPiece); //Tests if the move the user wants to make is allowed
+
+void StartSDL (); //Starts up and initalizes everything in SDL
+void CloseSDL (); //Closes down and deletes everything in SDL
+void LoadMedia(); //Loads all the pictures and fonts
+SDL_Texture* LoadTexture( string path ); //Assigns all the pictures to their respective textures
+SDL_Texture* LoadText (int X,int Y); //Loads and displays and given text onto the display window
 
 //Piece and Board Textures
 SDL_Renderer* Renderer = NULL;
@@ -56,7 +54,7 @@ TTF_Font *gFont = NULL;
 TTF_Font *Font = NULL;
 
 int main(int argc, char* args[])
- {
+{
     StartSDL();
     SDL_GetMouseState(&mousex,&mousey);
     LoadMedia();
@@ -141,6 +139,25 @@ int main(int argc, char* args[])
     CloseSDL();
 
     return 0;
+}
+
+void assignValues (TPiece WhatPiece, int Rectx, int Recty, string path , int i,bool isWhite)
+{
+    SDL_Rect Rect;
+    Rect.x = Rectx;
+    Rect.y = Recty;
+    Rect.h = SquareSize;
+    Rect.w = SquareSize;
+
+    SDL_Texture* Texture;
+
+    Texture = LoadTexture(path);
+
+    Pieces[i].TypeOfPiece = WhatPiece;
+    Pieces[i].Texture = Texture;
+    Pieces[i].Rect = Rect;
+    Pieces[i].FirstMove = true;
+    Pieces[i].IsWhite = isWhite;
 }
 
 void SetPositions (PieceInfo Pieces[32],TPiece Board[8][8])
@@ -234,23 +251,6 @@ void PieceSnapToSquare (PieceInfo Pieces[32],int selectedPiece,int mousex,int mo
     }
 }
 
-void assignValues (TPiece WhatPiece, int Rectx, int Recty, string path , int i,bool isWhite)
-{
-    SDL_Rect Rect;
-    Rect.x = Rectx;
-    Rect.y = Recty;
-    Rect.h = SquareSize;
-    Rect.w = SquareSize;
-
-    SDL_Texture* Texture;
-
-    Texture = LoadTexture(path);
-
-    Pieces[i].TypeOfPiece = WhatPiece;
-    Pieces[i].Texture = Texture;
-    Pieces[i].Rect = Rect;
-}
-
 int SelectPiece(int mousex,int mousey)
 {
     for (int i = 0; i < 32; i++)
@@ -259,6 +259,7 @@ int SelectPiece(int mousex,int mousey)
         int lowy = Pieces[i].Rect.y;
         int Highx = lowx+SquareSize;
         int Highy = lowy+SquareSize;
+
         if (mousex >= lowx && mousex < Highx && mousey >= lowy && mousey < Highy)
         {
             cout << Pieces[i].TypeOfPiece << " has been selected " << i << endl;
@@ -291,31 +292,145 @@ void PrintBoard (PieceInfo Pieces[32],TPiece Board[8][8])
     }
 }
 
-bool IsvalidMove(PieceInfo Pieces[32],int selectedPiece)
+//*****************************************************
+//********************Pawn Movement********************
+//*****************************************************
+
+int PawnSomethingInWay(PieceInfo Pieces[32],int selectedPiece,bool Iswhite)
+{
+    if (Iswhite)
+        for (int i = 0; i < 32; i++)
+        {
+            if (i == selectedPiece) continue;
+            if ((Pieces[selectedPiece].OldLocation.y == Pieces[i].Rect.y + SquareSize)   && (Pieces[selectedPiece].OldLocation.x == Pieces[i].Rect.x)) return 1;
+            if ((Pieces[selectedPiece].OldLocation.y == Pieces[i].Rect.y + 2*SquareSize) && (Pieces[selectedPiece].OldLocation.x == Pieces[i].Rect.x)) return 2;
+        }
+    else
+        for (int i = 0; i < 32; i++)
+        {
+            if (i == selectedPiece) continue;
+
+            if ((Pieces[selectedPiece].OldLocation.y == Pieces[i].Rect.y - SquareSize)   && (Pieces[selectedPiece].OldLocation.x == Pieces[i].Rect.x)) return 1;
+            if ((Pieces[selectedPiece].OldLocation.y == Pieces[i].Rect.y - 2*SquareSize) && (Pieces[selectedPiece].OldLocation.x == Pieces[i].Rect.x)) return 2;
+        }
+    return -1;
+}
+
+int PawnTake(PieceInfo Pieces[32],int selectedPiece,bool Iswhite)
 {
     for (int i = 0; i < 32; i++)
     {
         if (i == selectedPiece) continue;
 
-        if (Pieces[selectedPiece].Rect.x == Pieces[i].Rect.x && Pieces[selectedPiece].Rect.y == Pieces[i].Rect.y)
-        {
-            cout << Pieces[i].TypeOfPiece << " (" << Pieces[i].Rect.x << "," << Pieces[i].Rect.y  << ") " << " Is in the way" << endl;
-            return false;
-        }
+        if (Pieces[selectedPiece].Rect.y == Pieces[i].Rect.y && Pieces[selectedPiece].Rect.x == Pieces[i].Rect.x)
+            if (Pieces[selectedPiece].IsWhite != Pieces[i].IsWhite)
+                return i;
     }
-
-    if (Pieces[selectedPiece].TypeOfPiece == pawn11)
-    {
-        PawnMove(Pieces,selectedPiece);
-    }
-
-    return true;
+    return -1;
 }
 
 bool PawnMove(PieceInfo Pieces[32],int selectedPiece)
 {
+    int SomethingInfrontOfPawn = PawnSomethingInWay(Pieces,selectedPiece,Pieces[selectedPiece].IsWhite);
 
+    if (Pieces[selectedPiece].FirstMove)
+    {
+        if (Pieces[selectedPiece].IsWhite) // White pawn first move
+        {
+            cout << SomethingInfrontOfPawn << endl;
+            if (Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y - 2*SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x && SomethingInfrontOfPawn == -1)
+            {
+                Pieces[selectedPiece].FirstMove = false;
+                return true;
+            }
+            if (Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y - SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x && SomethingInfrontOfPawn != 1)
+            {
+                Pieces[selectedPiece].FirstMove = false;
+                return true;
+            }
+        }
+        else //Black pawn first move
+        {
+            if (Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y + 2*SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x && SomethingInfrontOfPawn == -1)
+            {
+                Pieces[selectedPiece].FirstMove = false;
+                return true;
+            }
+            if (Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y + SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x && SomethingInfrontOfPawn != 1)
+            {
+                Pieces[selectedPiece].FirstMove = false;
+                return true;
+            }
+        }
+    }
+    else //Regular One square moving after the first move
+    {
+        if (Pieces[selectedPiece].IsWhite)
+        {
+            if (Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y - SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x && SomethingInfrontOfPawn != 1)
+                return true;
+        }
+        else
+        {
+            if (Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y + SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x && SomethingInfrontOfPawn != 1)
+                return true;
+        }
+    }
+
+    if (Pieces[selectedPiece].IsWhite) //White Pawns Taking Pieces
+    {
+        if ((Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y - SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x-SquareSize)||(Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y - SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x+SquareSize))
+        {
+            int PieceToUpperLeft = PawnTake(Pieces,selectedPiece,Pieces[selectedPiece].IsWhite);
+            if (PieceToUpperLeft >= 0)
+            {
+                Pieces[PieceToUpperLeft].Rect.x = 8*SquareSize+Offset;
+                Pieces[PieceToUpperLeft].Rect.y = 50;
+                Pieces[selectedPiece].FirstMove = false;
+                return true;
+            }
+        }
+    }
+    else //Black Pawns Taking Pieces
+    {
+        if ((Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y + SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x+SquareSize)||(Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y + SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x-SquareSize))
+        {
+            int PieceToUpperLeft = PawnTake(Pieces,selectedPiece,Pieces[selectedPiece].IsWhite);
+            if (PieceToUpperLeft >= 0)
+            {
+                Pieces[PieceToUpperLeft].Rect.x = 8*SquareSize+Offset;
+                Pieces[PieceToUpperLeft].Rect.y = 50;
+                Pieces[selectedPiece].FirstMove = false;
+                return true;
+            }
+        }
+    }
+    return false;
 }
+
+//*****************************************************
+//*******************Knight Movement*******************
+//*****************************************************
+
+bool IsvalidMove(PieceInfo Pieces[32],int selectedPiece)
+{
+    if (mousex >= BoardHeight+50 || mousex < 50 || mousey >= BoardHeight+50 || mousey < 50) return false;
+
+    if (Pieces[selectedPiece].TypeOfPiece == pawn11)
+    {
+        if (PawnMove(Pieces,selectedPiece)) return true;
+    }
+    else if (Pieces[selectedPiece].TypeOfPiece == knight)
+    {
+        if (KnightMove(Pieces,selectedPiece)) return true;
+    }
+    else
+    {
+        return true;
+    }
+    return false;
+}
+
 void StartSDL()
 {
     SDL_Init( SDL_INIT_EVERYTHING );
