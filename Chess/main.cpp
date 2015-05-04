@@ -111,7 +111,7 @@ int main(int argc, char* args[])
         if (Mousedown && SelectedPiece < 0 )
         {
             //Checking to see if the mouse is on the board
-            if (mousex >= Offset && mousex < BoardHeight+Offset && mousey >= Offset && mousey < BoardHeight)
+            if (mousex >= Offset && mousex < BoardHeight+Offset && mousey >= Offset && mousey < BoardHeight+Offset)
                 SelectedPiece = SelectPiece(mousex,mousey);
         }
 
@@ -160,7 +160,7 @@ void assignValues (TPiece WhatPiece, int Rectx, int Recty, string path , int i,b
     Pieces[i].IsWhite = isWhite;
 }
 
-void SetPositions (PieceInfo Pieces[32],TPiece Board[8][8])
+void SetPositions (TPiece Board[8][8])
 {
     int xtrack = 0;
 
@@ -236,7 +236,7 @@ void SetPositions (PieceInfo Pieces[32],TPiece Board[8][8])
             board[x][y] = blank1;
 }
 
-void PieceSnapToSquare (PieceInfo Pieces[32],int selectedPiece,int mousex,int mousey)
+void PieceSnapToSquare (int selectedPiece,int mousex,int mousey)
 {
     for (int i = 0; i <= 7; i++)
     {
@@ -266,12 +266,15 @@ int SelectPiece(int mousex,int mousey)
             Pieces[i].OldLocation = Pieces[i].Rect;
             return i;
         }
-
     }
     return -1;
 }
 
-void PrintBoard (PieceInfo Pieces[32],TPiece Board[8][8])
+int FindMatch(PieceInfo Pieces[1])
+{
+    return 3;
+}
+void PrintBoard (TPiece Board[8][8])
 {
     int xtrack = 0;
     int ytrack = 0;
@@ -296,9 +299,9 @@ void PrintBoard (PieceInfo Pieces[32],TPiece Board[8][8])
 //********************Pawn Movement********************
 //*****************************************************
 
-int PawnSomethingInWay(PieceInfo Pieces[32],int selectedPiece,bool Iswhite)
+int PawnSomethingInWay(int selectedPiece)
 {
-    if (Iswhite)
+    if (Pieces[selectedPiece].IsWhite)
         for (int i = 0; i < 32; i++)
         {
             if (i == selectedPiece) continue;
@@ -316,7 +319,7 @@ int PawnSomethingInWay(PieceInfo Pieces[32],int selectedPiece,bool Iswhite)
     return -1;
 }
 
-int PawnTake(PieceInfo Pieces[32],int selectedPiece,bool Iswhite)
+int PawnTake(int selectedPiece)
 {
     for (int i = 0; i < 32; i++)
     {
@@ -329,9 +332,9 @@ int PawnTake(PieceInfo Pieces[32],int selectedPiece,bool Iswhite)
     return -1;
 }
 
-bool PawnMove(PieceInfo Pieces[32],int selectedPiece)
+bool PawnMove(int selectedPiece)
 {
-    int SomethingInfrontOfPawn = PawnSomethingInWay(Pieces,selectedPiece,Pieces[selectedPiece].IsWhite);
+    int SomethingInfrontOfPawn = PawnSomethingInWay(selectedPiece);
 
     if (Pieces[selectedPiece].FirstMove)
     {
@@ -381,7 +384,7 @@ bool PawnMove(PieceInfo Pieces[32],int selectedPiece)
     {
         if ((Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y - SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x-SquareSize)||(Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y - SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x+SquareSize))
         {
-            int PieceToUpperLeft = PawnTake(Pieces,selectedPiece,Pieces[selectedPiece].IsWhite);
+            int PieceToUpperLeft = PawnTake(selectedPiece);
             if (PieceToUpperLeft >= 0)
             {
                 Pieces[PieceToUpperLeft].Rect.x = 8*SquareSize+Offset;
@@ -395,7 +398,7 @@ bool PawnMove(PieceInfo Pieces[32],int selectedPiece)
     {
         if ((Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y + SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x+SquareSize)||(Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y + SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x-SquareSize))
         {
-            int PieceToUpperLeft = PawnTake(Pieces,selectedPiece,Pieces[selectedPiece].IsWhite);
+            int PieceToUpperLeft = PawnTake(selectedPiece);
             if (PieceToUpperLeft >= 0)
             {
                 Pieces[PieceToUpperLeft].Rect.x = 8*SquareSize+Offset;
@@ -412,6 +415,26 @@ bool PawnMove(PieceInfo Pieces[32],int selectedPiece)
 //*******************Knight Movement*******************
 //*****************************************************
 
+bool IsKnightBlocked(PieceInfo Pieces[32],int selectedPiece)
+{
+    int KnightXMove[8] = {-2,-2,-1,-1,1,1,2,2};
+    int KnightYMove[8] = {-1,1,-2,2,-2,2,1,-1};
+
+    int MovingPiece = selectedPiece;
+    int MovingToSquare = FindMatch();
+
+    cout << "Knight: " << MovingToSquare << endl;
+}
+
+bool KnightMove(PieceInfo Pieces[32],int selectedPiece)
+{
+    bool SomethingInKnightMove = IsKnightBlocked(Pieces,selectedPiece);
+
+    if (SomethingInKnightMove) return false;
+
+    return true;
+}
+
 bool IsvalidMove(PieceInfo Pieces[32],int selectedPiece)
 {
     if (mousex >= BoardHeight+50 || mousex < 50 || mousey >= BoardHeight+50 || mousey < 50) return false;
@@ -422,12 +445,13 @@ bool IsvalidMove(PieceInfo Pieces[32],int selectedPiece)
     }
     else if (Pieces[selectedPiece].TypeOfPiece == knight)
     {
-        if (KnightMove(Pieces,selectedPiece)) return true;
+    if (KnightMove(Pieces,selectedPiece)) return true;
     }
     else
     {
         return true;
     }
+
     return false;
 }
 
