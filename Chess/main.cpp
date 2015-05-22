@@ -7,7 +7,7 @@
 
 using namespace std;
 
-typedef enum {blank1,pawn11,rook11,knight,bishop,king11,queen1} TPiece; //defining the types of pieces
+typedef enum {blank,pawn,rook,knight,bishop,king,queen} TPiece; //defining the types of pieces
 
 //creating PieceInfo structure
 struct PieceInfo
@@ -20,6 +20,12 @@ struct PieceInfo
     SDL_Texture* Texture; //Picture of the piece
 };
 
+struct AiMovementTree
+{
+    TPiece board[8][8];
+    vector <AiMovementTree> FutureMoves;
+};
+
 //Declaring Global Variables
 TPiece board[8][8];
 PieceInfo Pieces[32]; //Creates and area of structures, one per piece
@@ -30,6 +36,7 @@ int SquareSize; //The width and height of each individual square on the board, d
 const int Offset = 50; //The small buffer zone between the top, and left side of the window and the board
 int mousex; //Global variables to hold the mouse's x coordinate
 int mousey; //Global variables to hold the mouse's y coordinate
+bool WhiteTurn = true;
 
 //Functions
 void PrintBoard (TPiece Board[8][8]);
@@ -37,9 +44,16 @@ void SetPositions (TPiece Board[8][8]); //Initially gives values in the structur
 void PieceSnapToSquare (int selectedPiece,int mousex,int mousey); //After the piece is dropped it aligns in onto the square below the mouse
 int SelectPiece(int mousex,int mousey); //When the user clicks on a piece, it returns the piece's structure for manipulation
 bool IsvalidMove(int selectedPiece); //Tests if the move the user wants to make is allowed
+bool CheckForCheck (int KingColour); //Checks if the move cause either player to be in check
+int PieceTake(int selectedpiece); //Moves the taken piece off the board;
+void assignValues(TPiece WhatPiece,int Rectx,int Recty,string path,int i,bool isWhite);
+bool AiMove();
+void FirstMoves();
+AiMovementTree *insert (TPiece board[8][8], AiMovementTree **tree);
 
 void StartSDL (); //Starts up and initalizes everything in SDL
 void CloseSDL (); //Closes down and deletes everything in SDL
+void ClosePromotion  ();
 void LoadMedia(); //Loads all the pictures and fonts
 SDL_Texture* LoadTexture( string path ); //Assigns all the pictures to their respective textures
 SDL_Texture* LoadText (int X,int Y); //Loads and displays and given text onto the display window
@@ -47,11 +61,15 @@ SDL_Texture* LoadText (int X,int Y); //Loads and displays and given text onto th
 //Piece and Board Textures
 SDL_Renderer* Renderer = NULL;
 SDL_Window* window = NULL;
+SDL_Renderer* PromotionRenderer = NULL;
+SDL_Window* PromotionWindow = NULL;
 SDL_Texture* BoardTexture = NULL;
 SDL_Texture* CoordTexture = NULL;
 SDL_Color White = {0,0,0};
 TTF_Font *gFont = NULL;
 TTF_Font *Font = NULL;
+AiMovementTree* root = NULL;
+bool PromotionQuit = true;
 
 int main(int argc, char* args[])
 {
@@ -79,9 +97,13 @@ int main(int argc, char* args[])
     TextRect2.h = 32;
 
     SDL_Event e;
+    SDL_Event g;
     bool quit;
     bool Mousedown = false;
+    bool PromotionClick = false;
     int SelectedPiece = -1;
+
+    FirstMoves();
 
     while (!quit)
     {
@@ -99,9 +121,41 @@ int main(int argc, char* args[])
                 if (SelectedPiece >= 0)
                 {
                     PieceSnapToSquare(SelectedPiece,mousex,mousey);
+
                     if(!IsvalidMove(SelectedPiece))
-                    {
                         Pieces[SelectedPiece].Rect = Pieces[SelectedPiece].OldLocation;
+                    else
+                    {
+                        bool TurnChange = true;
+
+                        int TakenPiece = PieceTake(SelectedPiece);
+
+                        if (CheckForCheck(30))
+                        {
+                            if (WhiteTurn)
+                            {
+                                TurnChange = false;
+                                Pieces[SelectedPiece].Rect = Pieces[SelectedPiece].OldLocation;
+                                cout << TakenPiece << " Taken Piece" << endl;
+                                if (TakenPiece >= 0) Pieces[TakenPiece].Rect = Pieces[TakenPiece].OldLocation;
+                            }
+                            cout << "White is in check" << endl;
+                        }
+                        if (CheckForCheck(31))
+                        {
+                            if (!WhiteTurn)
+                            {
+                                TurnChange = false;
+                                Pieces[SelectedPiece].Rect = Pieces[SelectedPiece].OldLocation;
+                                if (TakenPiece > 0) Pieces[TakenPiece].Rect = Pieces[TakenPiece].OldLocation;
+                            }
+                            cout << "Black is in check" << endl;
+                        }
+
+                        if (TurnChange)
+                        {
+                            WhiteTurn = !WhiteTurn;
+                        }
                     }
                 }
                 SelectedPiece = -1;
@@ -121,6 +175,13 @@ int main(int argc, char* args[])
             Pieces[SelectedPiece].Rect.y = mousey-SquareSize/2;
         }
 
+        /*if (!WhiteTurn)
+            if (AiMove())
+            {
+                WhiteTurn = WhiteTurn;
+            }*/
+
+
         SDL_RenderClear(Renderer);
         SDL_RenderCopy(Renderer,BoardTexture,NULL,&BoardRect);
         CoordTexture = LoadText(Pieces[SelectedPiece].Rect.x,Pieces[SelectedPiece].Rect.y);
@@ -132,6 +193,24 @@ int main(int argc, char* args[])
             SDL_RenderCopy(Renderer,Pieces[i].Texture,NULL,&Pieces[i].Rect);
 
         SDL_RenderPresent(Renderer);
+
+        while (!PromotionQuit)
+        {
+            while(SDL_PollEvent(&g) != 0)
+            {
+                if (g.type == SDL_MOUSEBUTTONDOWN)
+                    PromotionClick = true;
+
+                SDL_RenderClear(PromotionRenderer);
+                SDL_RenderPresent(PromotionRenderer);
+            }
+            if (PromotionClick)
+            {
+                ClosePromotion();
+                PromotionQuit = true;
+            }
+        }
+
     }
 
     PrintBoard(board);
@@ -156,6 +235,7 @@ void assignValues (TPiece WhatPiece, int Rectx, int Recty, string path , int i,b
     Pieces[i].TypeOfPiece = WhatPiece;
     Pieces[i].Texture = Texture;
     Pieces[i].Rect = Rect;
+    Pieces[i].OldLocation = Rect;
     Pieces[i].FirstMove = true;
     Pieces[i].IsWhite = isWhite;
 }
@@ -166,7 +246,7 @@ void SetPositions (TPiece Board[8][8])
 
     for (int i = 0; i < 8; i++)
     {
-        assignValues(pawn11,xtrack*SquareSize+Offset,6*SquareSize+Offset,"Pictures/WhitePawn.gif",i,true);
+        assignValues(pawn,xtrack*SquareSize+Offset,6*SquareSize+Offset,"Pictures/WhitePawn.gif",i,true);
         xtrack++;
     }
 
@@ -174,7 +254,7 @@ void SetPositions (TPiece Board[8][8])
 
     for (int i = 8; i < 16; i++)
     {
-        assignValues(pawn11,xtrack*SquareSize+Offset,SquareSize+Offset,"Pictures/BlackPawn.gif",i,false);
+        assignValues(pawn,xtrack*SquareSize+Offset,SquareSize+Offset,"Pictures/BlackPawn.gif",i,false);
         xtrack ++;
     }
 
@@ -182,7 +262,7 @@ void SetPositions (TPiece Board[8][8])
 
     for (int i = 16; i < 18; i++)
     {
-        assignValues(rook11,xtrack*SquareSize+Offset,7*SquareSize+Offset,"Pictures/WhiteRook.gif",i,true);
+        assignValues(rook,xtrack*SquareSize+Offset,7*SquareSize+Offset,"Pictures/WhiteRook.gif",i,true);
         xtrack += 7;
     }
 
@@ -190,7 +270,7 @@ void SetPositions (TPiece Board[8][8])
 
     for (int i = 18; i < 20; i++)
     {
-        assignValues(rook11,xtrack*SquareSize+Offset,Offset,"Pictures/BlackRook.gif",i,false);
+        assignValues(rook,xtrack*SquareSize+Offset,Offset,"Pictures/BlackRook.gif",i,false);
         xtrack += 7;
     }
 
@@ -226,14 +306,14 @@ void SetPositions (TPiece Board[8][8])
         xtrack += 3;
     }
 
-    assignValues(king11,4*SquareSize+Offset,Offset,"Pictures/BlackKing.gif",31,false);
-    assignValues(king11,4*SquareSize+Offset,7*SquareSize+Offset,"Pictures/WhiteKing.gif",30,true);
-    assignValues(queen1,3*SquareSize+Offset,Offset,"Pictures/BlackQueen.gif",29,false);
-    assignValues(queen1,3*SquareSize+Offset,7*SquareSize+Offset,"Pictures/WhiteQueen.gif",28,true);
+    assignValues(king,4*SquareSize+Offset,Offset,"Pictures/BlackKing.gif",31,false);
+    assignValues(king,4*SquareSize+Offset,7*SquareSize+Offset,"Pictures/WhiteKing.gif",30,true);
+    assignValues(queen,3*SquareSize+Offset,Offset,"Pictures/BlackQueen.gif",29,false);
+    assignValues(queen,3*SquareSize+Offset,7*SquareSize+Offset,"Pictures/WhiteQueen.gif",28,true);
 
     for (int y = 0; y < 8; y++)
         for (int x = 0; x < 8; x++)
-            board[x][y] = blank1;
+            board[x][y] = blank;
 }
 
 void PieceSnapToSquare (int selectedPiece,int mousex,int mousey)
@@ -262,9 +342,12 @@ int SelectPiece(int mousex,int mousey)
 
         if (mousex >= lowx && mousex < Highx && mousey >= lowy && mousey < Highy)
         {
-            cout << Pieces[i].TypeOfPiece << " has been selected " << i << endl;
-            Pieces[i].OldLocation = Pieces[i].Rect;
-            return i;
+            if (WhiteTurn == Pieces[i].IsWhite)
+            {
+                cout << Pieces[i].TypeOfPiece << " has been selected " << i << endl;
+                Pieces[i].OldLocation = Pieces[i].Rect;
+                return i;
+            }
         }
     }
     return -1;
@@ -276,24 +359,37 @@ int FindMatch(int x, int y, int SelectedPiece)
     {
         if (i == SelectedPiece) continue;
 
-        if (Pieces[i].Rect.y == y && Pieces[i].Rect.x == x) return i;
+        if (Pieces[i].Rect.y == y && Pieces[i].Rect.x == x)
+        {
+            //cout << Pieces[i].TypeOfPiece << " is in the way " << i << endl;
+            return i;
+        }
     }
     return -1;
 }
 
-bool PieceTake(int selectedPiece)
+int PieceTake(int selectedPiece)
 {
     int beingTaken = FindMatch(Pieces[selectedPiece].Rect.x, Pieces[selectedPiece].Rect.y, selectedPiece);
 
     if (beingTaken >= 0)
+    {
         if (Pieces[selectedPiece].IsWhite != Pieces[beingTaken].IsWhite)
         {
+            Pieces[beingTaken].OldLocation = Pieces[beingTaken].Rect;
             Pieces[beingTaken].Rect.x = 8*SquareSize + Offset;
             Pieces[beingTaken].Rect.y = Offset;
             Pieces[selectedPiece].FirstMove = false;
-            return true;
+            return beingTaken;
         }
-    return false;
+        else
+        {
+            Pieces[selectedPiece].Rect.x = Pieces[selectedPiece].OldLocation.x;
+            Pieces[selectedPiece].Rect.y = Pieces[selectedPiece].OldLocation.y;
+        }
+    }
+
+    return -1;
 }
 
 void PrintBoard (TPiece Board[8][8])
@@ -317,11 +413,10 @@ void PrintBoard (TPiece Board[8][8])
     }
 }
 
-//*****************************************************
-//********************Pawn Movement********************
-//*****************************************************
+/*Start of Movements */
 
-int PawnSomethingInWay(int selectedPiece)
+//********************Pawn Movement********************
+int IsPawnBlocked(int selectedPiece)
 {
     if (Pieces[selectedPiece].IsWhite)
     {
@@ -340,9 +435,25 @@ int PawnSomethingInWay(int selectedPiece)
     return 0;
 }
 
+void Promotion (int selectedPiece)
+{
+    if (Pieces[selectedPiece].Rect.y == Offset && Pieces[selectedPiece].IsWhite && PromotionQuit)
+    {
+        PromotionWindow = SDL_CreateWindow( "Promotion", 8+ScreenWidth/2, 31, ScreenWidth/4, ScreenHeight/4, SDL_WINDOW_SHOWN );
+        PromotionRenderer = SDL_CreateRenderer( window, -1, SDL_RENDERER_ACCELERATED );
+        PromotionQuit = false;
+    }
+    else if (Pieces[selectedPiece].Rect.y == Offset+7*SquareSize && !Pieces[selectedPiece].IsWhite && PromotionQuit)
+    {
+        PromotionWindow = SDL_CreateWindow( "Promotion", 8+ScreenWidth/2, 31, ScreenWidth/4, ScreenHeight/4, SDL_WINDOW_SHOWN );
+        PromotionRenderer = SDL_CreateRenderer( window, -1, SDL_RENDERER_ACCELERATED );
+        PromotionQuit = false;
+    }
+}
+
 bool PawnMove(int selectedPiece)
 {
-    int SomethingInfrontOfPawn = PawnSomethingInWay(selectedPiece);
+    int SomethingInfrontOfPawn = IsPawnBlocked(selectedPiece);
 
     if (Pieces[selectedPiece].FirstMove)
     {
@@ -378,77 +489,83 @@ bool PawnMove(int selectedPiece)
         if (Pieces[selectedPiece].IsWhite)
         {
             if (Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y - SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x && SomethingInfrontOfPawn != 1)
+            {
+                Promotion(selectedPiece);
                 return true;
+            }
+
         }
         else
         {
             if (Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y + SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x && SomethingInfrontOfPawn != 1)
+            {
+                Promotion(selectedPiece);
                 return true;
+            }
         }
     }
 
     if (Pieces[selectedPiece].IsWhite) //White Pawns Taking Pieces
     {
-        if ((Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y - SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x-SquareSize)||(Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y - SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x+SquareSize))
-        {
-            if (PieceTake(selectedPiece)) return true;
-        }
+        int AttackingPiece = FindMatch(Pieces[selectedPiece].Rect.x,Pieces[selectedPiece].Rect.y,selectedPiece);
+        if (Pieces[AttackingPiece].IsWhite != Pieces[selectedPiece].IsWhite && AttackingPiece >= 0)
+            if ((Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y - SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x-SquareSize)||(Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y - SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x+SquareSize))
+            {
+                Promotion(selectedPiece);
+                return true;
+            }
     }
     else //Black Pawns Taking Pieces
     {
-        if ((Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y + SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x+SquareSize)||(Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y + SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x-SquareSize))
-        {
-            if (PieceTake(selectedPiece)) return true;
-        }
+        int AttackingPiece = FindMatch(Pieces[selectedPiece].Rect.x,Pieces[selectedPiece].Rect.y,selectedPiece);
+        if (Pieces[AttackingPiece].IsWhite != Pieces[selectedPiece].IsWhite)
+            if ((Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y + SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x+SquareSize)||(Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y + SquareSize && Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x-SquareSize))
+            {
+                Promotion(selectedPiece);
+                return true;
+            }
     }
 
     return false;
 }
 
-//*****************************************************
 //*******************Knight Movement*******************
-//*****************************************************
 
 bool IsKnightBlocked(int selectedPiece)
 {
     int MovingToSquare = FindMatch(Pieces[selectedPiece].Rect.x, Pieces[selectedPiece].Rect.y, selectedPiece);
 
-    if (Pieces[selectedPiece].IsWhite == Pieces[MovingToSquare].IsWhite) return false;
-
-    return true;
-}
-
-bool KnightMove(int selectedPiece)
-{
-    bool GoodMove = false;
-
-    bool SomethingInKnightMove = IsKnightBlocked(selectedPiece);
-
-    if (Pieces[selectedPiece].FirstMove) Pieces[selectedPiece].FirstMove = false;
-
-    if (!SomethingInKnightMove) return false;
-
-    if (Pieces[selectedPiece].OldLocation.y + 2*SquareSize == Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x + SquareSize == Pieces[selectedPiece].Rect.x) GoodMove = true;
-    if (Pieces[selectedPiece].OldLocation.y + 2*SquareSize == Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x - SquareSize == Pieces[selectedPiece].Rect.x) GoodMove = true;
-    if (Pieces[selectedPiece].OldLocation.y - 2*SquareSize == Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x + SquareSize == Pieces[selectedPiece].Rect.x) GoodMove = true;
-    if (Pieces[selectedPiece].OldLocation.y - 2*SquareSize == Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x - SquareSize == Pieces[selectedPiece].Rect.x) GoodMove = true;
-    if (Pieces[selectedPiece].OldLocation.x + 2*SquareSize == Pieces[selectedPiece].Rect.x && Pieces[selectedPiece].OldLocation.y + SquareSize == Pieces[selectedPiece].Rect.y) GoodMove = true;
-    if (Pieces[selectedPiece].OldLocation.x + 2*SquareSize == Pieces[selectedPiece].Rect.x && Pieces[selectedPiece].OldLocation.y - SquareSize == Pieces[selectedPiece].Rect.y) GoodMove = true;
-    if (Pieces[selectedPiece].OldLocation.x - 2*SquareSize == Pieces[selectedPiece].Rect.x && Pieces[selectedPiece].OldLocation.y + SquareSize == Pieces[selectedPiece].Rect.y) GoodMove = true;
-    if (Pieces[selectedPiece].OldLocation.x - 2*SquareSize == Pieces[selectedPiece].Rect.x && Pieces[selectedPiece].OldLocation.y - SquareSize == Pieces[selectedPiece].Rect.y) GoodMove = true;
-
-    if (GoodMove)
-    {
-        PieceTake(selectedPiece);
-        return true;
-    }
+    if (MovingToSquare >= 0)
+        if (Pieces[selectedPiece].IsWhite == Pieces[MovingToSquare].IsWhite)
+            return true;
 
     return false;
 }
 
-//*****************************************************
+bool KnightMove(int selectedPiece)
+{
+    bool SomethingInKnightMove = IsKnightBlocked(selectedPiece);
+
+    if (Pieces[selectedPiece].FirstMove) Pieces[selectedPiece].FirstMove = false;
+
+    if (SomethingInKnightMove)
+    {
+        cout << "Something is in the way" << endl;
+        return false;
+    }
+
+    if (Pieces[selectedPiece].OldLocation.y + 2*SquareSize == Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x + SquareSize == Pieces[selectedPiece].Rect.x) return true;
+    if (Pieces[selectedPiece].OldLocation.y + 2*SquareSize == Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x - SquareSize == Pieces[selectedPiece].Rect.x) return true;
+    if (Pieces[selectedPiece].OldLocation.y - 2*SquareSize == Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x + SquareSize == Pieces[selectedPiece].Rect.x) return true;
+    if (Pieces[selectedPiece].OldLocation.y - 2*SquareSize == Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x - SquareSize == Pieces[selectedPiece].Rect.x) return true;
+    if (Pieces[selectedPiece].OldLocation.x + 2*SquareSize == Pieces[selectedPiece].Rect.x && Pieces[selectedPiece].OldLocation.y + SquareSize == Pieces[selectedPiece].Rect.y) return true;
+    if (Pieces[selectedPiece].OldLocation.x + 2*SquareSize == Pieces[selectedPiece].Rect.x && Pieces[selectedPiece].OldLocation.y - SquareSize == Pieces[selectedPiece].Rect.y) return true;
+    if (Pieces[selectedPiece].OldLocation.x - 2*SquareSize == Pieces[selectedPiece].Rect.x && Pieces[selectedPiece].OldLocation.y + SquareSize == Pieces[selectedPiece].Rect.y) return true;
+    if (Pieces[selectedPiece].OldLocation.x - 2*SquareSize == Pieces[selectedPiece].Rect.x && Pieces[selectedPiece].OldLocation.y - SquareSize == Pieces[selectedPiece].Rect.y) return true;
+    return false;
+}
+
 //*******************Bishop Movement*******************
-//*****************************************************
 
 bool IsBishopBlocked(int selectedPiece)
 {
@@ -456,48 +573,37 @@ bool IsBishopBlocked(int selectedPiece)
 
     if (Pieces[selectedPiece].OldLocation.y < Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x < Pieces[selectedPiece].Rect.x)
     {
-        cout << "1" << endl;
         for (int checky = Pieces[selectedPiece].OldLocation.y; checky <= Pieces[selectedPiece].Rect.y; checky += SquareSize)
         {
-
-            if (FindMatch(xcheck,checky,selectedPiece)>= 0) return true;
             if (checky == Pieces[selectedPiece].Rect.y && xcheck == Pieces[selectedPiece].Rect.x) return false;
+            if (FindMatch(xcheck,checky,selectedPiece)>= 0) return true;
             xcheck+= SquareSize;
         }
     }
     else if (Pieces[selectedPiece].OldLocation.y < Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x > Pieces[selectedPiece].Rect.x)
     {
-        cout << "2" << endl;
         for (int checky = Pieces[selectedPiece].OldLocation.y; checky <= Pieces[selectedPiece].Rect.y; checky += SquareSize)
         {
-            if (FindMatch(xcheck,checky,selectedPiece)>= 0) return true;
             if (checky == Pieces[selectedPiece].Rect.y && xcheck == Pieces[selectedPiece].Rect.x) return false;
+            if (FindMatch(xcheck,checky,selectedPiece)>= 0) return true;
             xcheck-= SquareSize;
         }
     }
     else if (Pieces[selectedPiece].OldLocation.y > Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x < Pieces[selectedPiece].Rect.x)
     {
-        cout << "3" << endl;
         for (int checky = Pieces[selectedPiece].OldLocation.y; checky >= Pieces[selectedPiece].Rect.y; checky -= SquareSize)
         {
-            cout << xcheck << " , " << checky << endl;
-            cout << Pieces[selectedPiece].Rect.x << " , " << Pieces[selectedPiece].Rect.y << endl << endl;
+            if (checky == Pieces[selectedPiece].Rect.y && xcheck == Pieces[selectedPiece].Rect.x)return false;
             if (FindMatch(xcheck,checky,selectedPiece)>= 0) return true;
-            if (checky == Pieces[selectedPiece].Rect.y && xcheck == Pieces[selectedPiece].Rect.x) return false;
             xcheck+= SquareSize;
         }
     }
     else if (Pieces[selectedPiece].OldLocation.y > Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x > Pieces[selectedPiece].Rect.x)
     {
-        cout << "4" << endl;
         for (int checky = Pieces[selectedPiece].OldLocation.y; checky >= Pieces[selectedPiece].Rect.y; checky -= SquareSize)
         {
-            if (FindMatch(xcheck,checky,selectedPiece)>= 0) return true;
-            if (checky == Pieces[selectedPiece].Rect.y && xcheck == Pieces[selectedPiece].Rect.x)
-            {
-                Pie
-                return false;
-            }
+            if (checky == Pieces[selectedPiece].Rect.y && xcheck == Pieces[selectedPiece].Rect.x)return false;
+            if (FindMatch(xcheck,checky,selectedPiece) >= 0) return true;
             xcheck-= SquareSize;
         }
     }
@@ -509,33 +615,280 @@ bool BishopMove(int selectedPiece)
     if (!IsBishopBlocked(selectedPiece))
     {
         if (Pieces[selectedPiece].FirstMove) Pieces[selectedPiece].FirstMove = false;
-
         return true;
     }
     return false;
 }
 
-//*****************************************************
 //********************Rook Movement********************
-//*****************************************************
 
+bool IsRookBlocked(int selectedPiece)
+{
+    if (Pieces[selectedPiece].OldLocation.y < Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x == Pieces[selectedPiece].Rect.x)
+    {
+        for (int checky = Pieces[selectedPiece].OldLocation.y; checky <= Pieces[selectedPiece].Rect.y; checky += SquareSize)
+        {
+            if (checky == Pieces[selectedPiece].Rect.y) return false;
+            if (FindMatch(Pieces[selectedPiece].Rect.x,checky,selectedPiece)>= 0) return true;
+        }
+    }
+    else if (Pieces[selectedPiece].OldLocation.y > Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x == Pieces[selectedPiece].Rect.x)
+    {
+        for (int checky = Pieces[selectedPiece].OldLocation.y; checky >= Pieces[selectedPiece].Rect.y; checky -= SquareSize)
+        {
+            if (checky == Pieces[selectedPiece].Rect.y)return false;
+            if (FindMatch(Pieces[selectedPiece].Rect.x,checky,selectedPiece)>= 0) return true;
+        }
+    }
+    else if (Pieces[selectedPiece].OldLocation.y == Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x < Pieces[selectedPiece].Rect.x)
+    {
+        for (int checkx = Pieces[selectedPiece].OldLocation.x; checkx <= Pieces[selectedPiece].Rect.x; checkx += SquareSize)
+        {
+            if (checkx == Pieces[selectedPiece].Rect.x)return false;
+            if (FindMatch(checkx,Pieces[selectedPiece].Rect.y,selectedPiece)>= 0) return true;
+        }
+    }
+    else if (Pieces[selectedPiece].OldLocation.y == Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x > Pieces[selectedPiece].Rect.x)
+    {
+        for (int checkx = Pieces[selectedPiece].OldLocation.x; checkx >= Pieces[selectedPiece].Rect.x; checkx -= SquareSize)
+        {
+            if (checkx == Pieces[selectedPiece].Rect.x)return false;
+            if (FindMatch(checkx,Pieces[selectedPiece].Rect.y,selectedPiece)>= 0) return true;
+        }
+    }
+    return true;
+}
 
+bool RookMove(int selectedPiece)
+{
+    if (!IsRookBlocked(selectedPiece))
+    {
+        if (Pieces[selectedPiece].FirstMove) Pieces[selectedPiece].FirstMove = false;
+        return true;
+    }
+    return false;
+}
 
-//*****************************************************
 //********************King Movement********************
-//*****************************************************
+bool KingMove(int selectedPiece)
+{
+    if (Pieces[selectedPiece].FirstMove)
+    {
+        cout << "First King move" << endl;
+        if (Pieces[selectedPiece].IsWhite)
+        {
+            cout << "White Piece" << endl;
+            if (Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x + 2*SquareSize)
+            {
+                cout << "White Castle right Try" << endl;
+
+                if (Pieces[17].FirstMove)
+                {
+                    cout << "right White rook First move" << endl;
+
+                    for (int i = 0; i <= 2; i++)
+                    {
+                        Pieces[selectedPiece].Rect.x = Pieces[selectedPiece].OldLocation.x + i*SquareSize;
+                        if (CheckForCheck(selectedPiece)) return false;
+                        if (FindMatch(Pieces[selectedPiece].OldLocation.x+i*SquareSize,Pieces[selectedPiece].OldLocation.y,selectedPiece) != -1)
+                        {
+                            cout << "Something is in the way" << endl;
+                            return false;
+                        }
+                    }
+
+                    Pieces[selectedPiece].Rect.x = Pieces[selectedPiece].OldLocation.x + 2*SquareSize;
+                    Pieces[17].Rect.x = Pieces[17].Rect.x - 2*SquareSize;
+                    Pieces[selectedPiece].FirstMove = false;
+                    return true;
+                }
+            }
+            if (Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x - 2*SquareSize)
+            {
+                cout << "White Castle left Try" << endl;
+                if (Pieces[16].FirstMove)
+                {
+                    cout << "left White rook First move" << endl;
+                    for (int i = 0; i <= 2; i++)
+                    {
+                        Pieces[selectedPiece].Rect.x = Pieces[selectedPiece].OldLocation.x - i*SquareSize;
+                        if (CheckForCheck(selectedPiece)) return false;
+                        if (FindMatch(Pieces[selectedPiece].OldLocation.x-i*SquareSize,Pieces[selectedPiece].OldLocation.y,selectedPiece) != -1)
+                        {
+                            cout << "Something is in the way" << endl;
+                            return false;
+                        }
+                    }
+
+                    Pieces[selectedPiece].Rect.x = Pieces[selectedPiece].OldLocation.x - 2*SquareSize;
+                    Pieces[16].Rect.x = Pieces[16].Rect.x + 3*SquareSize;
+                    Pieces[selectedPiece].FirstMove = false;
+                    return true;
+                }
+            }
+        }
+        else
+        {
+            cout << "Black Piece" << endl;
+            if (Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x + 2*SquareSize)
+            {
+                cout << "Black Castle right Try" << endl;
+                if (Pieces[19].FirstMove)
+                {
+                    cout << "Left Black rook First move" << endl;
+
+                    for (int i = 0; i <= 2; i++)
+                    {
+                        Pieces[selectedPiece].Rect.x = Pieces[selectedPiece].OldLocation.x + i*SquareSize;
+                        if (CheckForCheck(selectedPiece)) return false;
+                        if (FindMatch(Pieces[selectedPiece].OldLocation.x+i*SquareSize,Pieces[selectedPiece].OldLocation.y,selectedPiece) != -1)
+                        {
+                            cout << "Something is in the way" << endl;
+                            return false;
+                        }
+                    }
+
+                    Pieces[selectedPiece].Rect.x = Pieces[selectedPiece].OldLocation.x + 2*SquareSize;
+                    Pieces[19].Rect.x = Pieces[19].Rect.x - 2*SquareSize;
+                    Pieces[selectedPiece].FirstMove = false;
+                    return true;
+                }
+            }
+            if (Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x - 2*SquareSize)
+            {
+                cout << "White Castle left Try" << endl;
+                if (Pieces[18].FirstMove)
+                {
+                    cout << "left White rook First move" << endl;
+                    for (int i = 0; i <= 2; i++)
+                    {
+                        Pieces[selectedPiece].Rect.x = Pieces[selectedPiece].OldLocation.x - i*SquareSize;
+                        if (CheckForCheck(selectedPiece)) return false;
+                        if (FindMatch(Pieces[selectedPiece].OldLocation.x-i*SquareSize,Pieces[selectedPiece].OldLocation.y,selectedPiece) != -1)
+                        {
+                            cout << "Something is in the way" << endl;
+                            return false;
+                        }
+                    }
+
+                    Pieces[selectedPiece].Rect.x = Pieces[selectedPiece].OldLocation.x - 2*SquareSize;
+                    Pieces[18].Rect.x = Pieces[18].Rect.x + 3*SquareSize;
+                    Pieces[selectedPiece].FirstMove = false;
+                    return true;
+                }
+            }
+        }
+    }
 
 
+    if (Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x && Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y+SquareSize) return true;
+    if (Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x && Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y-SquareSize) return true;
+    if (Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x+SquareSize && Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y) return true;
+    if (Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x-SquareSize && Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y) return true;
+    if (Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x+SquareSize && Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y+SquareSize) return true;
+    if (Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x-SquareSize && Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y+SquareSize) return true;
+    if (Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x+SquareSize && Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y-SquareSize) return true;
+    if (Pieces[selectedPiece].Rect.x == Pieces[selectedPiece].OldLocation.x-SquareSize && Pieces[selectedPiece].Rect.y == Pieces[selectedPiece].OldLocation.y-SquareSize) return true;
 
-//*****************************************************
+    return false;
+}
+
 //********************Queen Movement*******************
-//*****************************************************
+
+bool IsQueenBlocked(int selectedPiece)
+{
+    int xcheck = Pieces[selectedPiece].OldLocation.x;
+
+    //Diagonally moving down right
+    if (Pieces[selectedPiece].OldLocation.y < Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x < Pieces[selectedPiece].Rect.x)
+    {
+        for (int checky = Pieces[selectedPiece].OldLocation.y; checky <= Pieces[selectedPiece].Rect.y; checky += SquareSize)
+        {
+            if (checky == Pieces[selectedPiece].Rect.y && xcheck == Pieces[selectedPiece].Rect.x)return false;
+            if (FindMatch(xcheck,checky,selectedPiece)>= 0) return true;
+            xcheck+= SquareSize;
+        }
+    }
+    else if (Pieces[selectedPiece].OldLocation.y < Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x > Pieces[selectedPiece].Rect.x)
+    {
+        for (int checky = Pieces[selectedPiece].OldLocation.y; checky <= Pieces[selectedPiece].Rect.y; checky += SquareSize)
+        {
+            if (checky == Pieces[selectedPiece].Rect.y && xcheck == Pieces[selectedPiece].Rect.x)return false;
+            if (FindMatch(xcheck,checky,selectedPiece)>= 0) return true;
+            xcheck-= SquareSize;
+        }
+    }
+    else if (Pieces[selectedPiece].OldLocation.y > Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x < Pieces[selectedPiece].Rect.x)
+    {
+        for (int checky = Pieces[selectedPiece].OldLocation.y; checky >= Pieces[selectedPiece].Rect.y; checky -= SquareSize)
+        {
+            if (checky == Pieces[selectedPiece].Rect.y && xcheck == Pieces[selectedPiece].Rect.x)return false;
+            if (FindMatch(xcheck,checky,selectedPiece)>= 0) return true;
+            xcheck+= SquareSize;
+        }
+    }
+    else if (Pieces[selectedPiece].OldLocation.y > Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x > Pieces[selectedPiece].Rect.x)
+    {
+        for (int checky = Pieces[selectedPiece].OldLocation.y; checky >= Pieces[selectedPiece].Rect.y; checky -= SquareSize)
+        {
+            if (checky == Pieces[selectedPiece].Rect.y && xcheck == Pieces[selectedPiece].Rect.x)return false;
+            if (FindMatch(xcheck,checky,selectedPiece) >= 0) return true;
+
+            xcheck-= SquareSize;
+        }
+    }
+    else if (Pieces[selectedPiece].OldLocation.y < Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x == Pieces[selectedPiece].Rect.x)
+    {
+        for (int checky = Pieces[selectedPiece].OldLocation.y; checky <= Pieces[selectedPiece].Rect.y; checky += SquareSize)
+        {
+            if (checky == Pieces[selectedPiece].Rect.y)return false;
+            if (FindMatch(Pieces[selectedPiece].Rect.x,checky,selectedPiece)>= 0) return true;
+        }
+    }
+    else if (Pieces[selectedPiece].OldLocation.y > Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x == Pieces[selectedPiece].Rect.x)
+    {
+        for (int checky = Pieces[selectedPiece].OldLocation.y; checky >= Pieces[selectedPiece].Rect.y; checky -= SquareSize)
+        {
+            if (checky == Pieces[selectedPiece].Rect.y)return false;
+            if (FindMatch(Pieces[selectedPiece].Rect.x,checky,selectedPiece)>= 0) return true;
+        }
+    }
+    else if (Pieces[selectedPiece].OldLocation.y == Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x < Pieces[selectedPiece].Rect.x)
+    {
+        for (int checkx = Pieces[selectedPiece].OldLocation.x; checkx <= Pieces[selectedPiece].Rect.x; checkx += SquareSize)
+        {
+            if (checkx == Pieces[selectedPiece].Rect.x)return false;
+            if (FindMatch(checkx,Pieces[selectedPiece].Rect.y,selectedPiece)>= 0) return true;
+        }
+    }
+    else if (Pieces[selectedPiece].OldLocation.y == Pieces[selectedPiece].Rect.y && Pieces[selectedPiece].OldLocation.x > Pieces[selectedPiece].Rect.x)
+    {
+        for (int checkx = Pieces[selectedPiece].OldLocation.x; checkx >= Pieces[selectedPiece].Rect.x; checkx -= SquareSize)
+        {
+            if (checkx == Pieces[selectedPiece].Rect.x)return false;
+            if (FindMatch(checkx,Pieces[selectedPiece].Rect.y,selectedPiece)>= 0) return true;
+        }
+    }
+    return true;
+}
+
+bool QueenMove(int selectedPiece)
+{
+    if (!IsQueenBlocked(selectedPiece))
+    {
+        if (Pieces[selectedPiece].FirstMove) Pieces[selectedPiece].FirstMove = false;
+        return true;
+    }
+    return false;
+}
+
+/*End of Movements*/
 
 bool IsvalidMove(int selectedPiece)
 {
     if (mousex >= BoardHeight+50 || mousex < 50 || mousey >= BoardHeight+50 || mousey < 50) return false;
 
-    if (Pieces[selectedPiece].TypeOfPiece == pawn11)
+    if (Pieces[selectedPiece].TypeOfPiece == pawn)
     {
         if (PawnMove(selectedPiece)) return true;
     }
@@ -547,12 +900,266 @@ bool IsvalidMove(int selectedPiece)
     {
         if (BishopMove(selectedPiece)) return true;
     }
-    else
+    else if (Pieces[selectedPiece].TypeOfPiece == rook)
     {
-        return true;
+        if (RookMove(selectedPiece)) return true;
+    }
+    else if (Pieces[selectedPiece].TypeOfPiece == queen)
+    {
+        if (QueenMove(selectedPiece)) return true;
+    }
+    else if (Pieces[selectedPiece].TypeOfPiece == king)
+    {
+        if (KingMove(selectedPiece)) return true;
     }
 
     return false;
+}
+
+bool CheckForCheck(int KingColour)
+{
+    int Kingx = Pieces[KingColour].Rect.x;
+    int Kingy = Pieces[KingColour].Rect.y;
+
+    //Check Up
+    for (int checky = Kingy; checky >= Offset; checky -= SquareSize)
+    {
+        int Match = FindMatch(Kingx,checky,KingColour);
+        if (Match >= 0)
+        {
+            if (Pieces[Match].TypeOfPiece == rook && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
+            {
+                cout << "Rook Check up" << endl;
+                return true;
+            }
+            if (Pieces[Match].TypeOfPiece == queen && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
+            {
+                cout << "Queen Check up" << endl;
+                return true;
+            }
+            break;
+        }
+    }
+
+    //Check Down
+    for (int checky = Kingy; checky <= Offset+8*SquareSize; checky += SquareSize)
+    {
+        int Match = FindMatch(Kingx,checky,KingColour);
+        if (Match >= 0)
+        {
+            if (Pieces[Match].TypeOfPiece == rook && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
+            {
+                cout << "Rook Check Down" << endl;
+                return true;
+            }
+            if (Pieces[Match].TypeOfPiece == queen && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
+            {
+                cout << "Queen Check Down" << endl;
+                return true;
+            }
+            break;
+        }
+    }
+
+    //Check Left
+    for (int checkx = Kingx; checkx >= Offset; checkx -= SquareSize)
+    {
+        int Match = FindMatch(checkx,Kingy,KingColour);
+        if (Match >= 0)
+        {
+            if (Pieces[Match].TypeOfPiece == rook && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
+            {
+                cout << "Rook Check Left" << endl;
+                return true;
+            }
+            if (Pieces[Match].TypeOfPiece == queen && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
+            {
+                cout << "Queen Check Left" << endl;
+                return true;
+            }
+            break;
+        }
+    }
+
+    //Check Right
+    for (int checkx = Kingx; checkx <= Offset+8*SquareSize; checkx += SquareSize)
+    {
+        int Match = FindMatch(checkx,Kingy,KingColour);
+        if (Match >= 0)
+        {
+            if (Pieces[Match].TypeOfPiece == rook && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
+            {
+                cout << "Rook Check Right" << endl;
+                return true;
+            }
+            if (Pieces[Match].TypeOfPiece == queen && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
+            {
+                cout << "Queen Check Right" << endl;
+                return true;
+            }
+            break;
+        }
+    }
+
+    int checkx = Kingx;
+
+    //Check Up Left
+    for (int checky = Kingy; checky >= Offset; checky -= SquareSize)
+    {
+        int Match = FindMatch(checkx,checky,KingColour);
+        if (Match >= 0)
+        {
+            if (Pieces[Match].TypeOfPiece == pawn && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite && checkx == Kingx-SquareSize && checky == Kingy-SquareSize && Pieces[Match].IsWhite == false)
+            {
+                cout << "Pawn Check up Left" << endl;
+                return true;
+            }
+
+            if (Pieces[Match].TypeOfPiece == bishop && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
+            {
+                cout << "bishop Check up Left" << endl;
+                return true;
+            }
+            if (Pieces[Match].TypeOfPiece == queen && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
+            {
+                cout << "queen Check up Left" << endl;
+                return true;
+            }
+            break;
+        }
+        checkx-= SquareSize;
+    }
+
+    checkx = Kingx;
+
+    //Check Up Right
+    for (int checky = Kingy; checky >= Offset; checky -= SquareSize)
+    {
+        int Match = FindMatch(checkx,checky,KingColour);
+        if (Match >= 0)
+        {
+            if (Pieces[Match].TypeOfPiece == pawn && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite && checkx == Kingx+SquareSize && checky == Kingy-SquareSize && Pieces[Match].IsWhite == false)
+            {
+                cout << "Pawn Check up Right" << endl;
+                return true;
+            }
+
+            if (Pieces[Match].TypeOfPiece == bishop && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
+            {
+                cout << "bishop Check up Right" << endl;
+                return true;
+            }
+            if (Pieces[Match].TypeOfPiece == queen && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
+            {
+                cout << "queen Check up Right" << endl;
+                return true;
+            }
+            break;
+        }
+        checkx+= SquareSize;
+    }
+
+    checkx = Kingx;
+
+    //Check Down Left
+    for (int checky = Kingy; checky <= Offset+8*SquareSize; checky += SquareSize)
+    {
+        int Match = FindMatch(checkx,checky,KingColour);
+        if (Match >= 0)
+        {
+            if (Pieces[Match].TypeOfPiece == pawn && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite && checkx == Kingx-SquareSize && checky == Kingy+SquareSize && Pieces[Match].IsWhite == true)
+            {
+                cout << "Pawn Check Down Left" << endl;
+                return true;
+            }
+
+            if (Pieces[Match].TypeOfPiece == bishop && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
+            {
+                cout << "bishop Check Down Left" << endl;
+                return true;
+            }
+            if (Pieces[Match].TypeOfPiece == queen && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
+            {
+                cout << "queen Check Down Left" << endl;
+                return true;
+            }
+            break;
+        }
+        checkx-= SquareSize;
+    }
+
+    checkx = Kingx;
+
+    //Check Down Right
+    for (int checky = Kingy; checky <= Offset+8*SquareSize; checky += SquareSize)
+    {
+        int Match = FindMatch(checkx,checky,KingColour);
+        if (Match >= 0)
+        {
+            if (Pieces[Match].TypeOfPiece == pawn && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite && checkx == Kingx+SquareSize && checky == Kingy+SquareSize && Pieces[Match].IsWhite == true)
+            {
+                cout << "Pawn Check Down Right" << endl;
+                return true;
+            }
+
+            if (Pieces[Match].TypeOfPiece == bishop && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
+            {
+                cout << "bishop Check Down Right" << endl;
+                return true;
+            }
+            if (Pieces[Match].TypeOfPiece == queen && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
+            {
+                cout << "queen Check Down Right" << endl;
+                return true;
+            }
+            break;
+        }
+        checkx+= SquareSize;
+    }
+
+
+    //Check Knight
+    int knightXMove[8] = {-1,1,2,2,1,-1,-2,-2};
+    int knightYMove[8] = {-2,-2,-1,1,2,2,1,-1};
+
+    for (int i = 0; i < 8; i++)
+    {
+        int AttackingPiece = FindMatch(Kingx+knightXMove[i]*SquareSize,Kingy+knightYMove[i]*SquareSize,KingColour);
+        if (Pieces[AttackingPiece].TypeOfPiece == knight && Pieces[AttackingPiece].IsWhite != Pieces[KingColour].IsWhite)
+        {
+            cout << "Knight check ( " << knightXMove[i] << " , " << knightYMove[i] << " )" << endl;
+            return true;
+        }
+    }
+    return false;
+}
+
+/********************AI MOVEMENTS***************************/
+
+bool AiMove()
+{
+    return true;
+}
+
+AiMovementTree *createNode(TPiece board[8][8])
+{
+    AiMovementTree *newNode = new AiMovementTree;
+    newNode -> board = board;
+    newNode -> left = NULL;
+    newNode -> right = NULL;
+    cout << "Created new node : " << endl;
+    return newNode;
+}
+
+void FirstMoves()
+{
+    AiMovementTree newnode = createNode(board);
+    root = newnode;
+}
+
+AiMovementTree * insert(TPiece board[8][8], AiMovementTree **tree)
+{
+
 }
 
 void StartSDL()
@@ -571,13 +1178,13 @@ void StartSDL()
     BoardHeight -= BoardHeight%8;
     SquareSize = BoardHeight/8;
 
-    window = SDL_CreateWindow( "Chess", 8, 31, ScreenWidth, ScreenHeight, SDL_WINDOW_SHOWN );
+    window = SDL_CreateWindow( "Chess", 8+ScreenWidth/2, 31, ScreenWidth, ScreenHeight, SDL_WINDOW_SHOWN );
 
     Renderer = SDL_CreateRenderer( window, -1, SDL_RENDERER_ACCELERATED );
 
     SDL_SetRenderDrawColor( Renderer, 0xFF, 0xFF, 0xFF, 0xFF );
 
-    IMG_Init( IMG_INIT_PNG ) & (IMG_INIT_PNG );
+    IMG_Init( IMG_INIT_PNG );
 
     TTF_Init();
 
@@ -597,11 +1204,18 @@ void CloseSDL()
     SDL_Quit();
 }
 
+void ClosePromotion()
+{
+    SDL_DestroyRenderer( PromotionRenderer );
+    SDL_DestroyWindow( PromotionWindow );
+    PromotionWindow = NULL;
+    PromotionRenderer = NULL;
+}
+
 void LoadMedia()
 {
     BoardTexture = LoadTexture("Pictures/Board.gif");
     CoordTexture = LoadText(mousex,mousey);
-    SDL_Texture* TempTexture = NULL;
 }
 
 SDL_Texture* LoadTexture( string path )

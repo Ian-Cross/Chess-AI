@@ -570,6 +570,7 @@ bool checkSquare(int y, int x, string color)
     int checkx; //declare var
     if (color == "White") colour = -1; //set val
     if (color == "Black") colour = 1; //set val
+
     if (chessBoard[y+(1*(-colour))][x+1] == colour*pawn or chessBoard[y+(1*(-colour))][x-1] == colour*pawn) return false; //return false
     checkx = x; //set val
     for (int i = y; i <= 8; i++)
