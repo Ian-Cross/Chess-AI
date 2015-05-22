@@ -1141,7 +1141,7 @@ bool AiMove()
     return true;
 }
 
-AiMovementTree *createNode(TPiece board[8][8])
+/*AiMovementTree *createNode(TPiece board[8][8])
 {
     AiMovementTree *newNode = new AiMovementTree;
     newNode -> board = board;
@@ -1149,12 +1149,12 @@ AiMovementTree *createNode(TPiece board[8][8])
     newNode -> right = NULL;
     cout << "Created new node : " << endl;
     return newNode;
-}
+}*/
 
 void FirstMoves()
 {
-    AiMovementTree newnode = createNode(board);
-    root = newnode;
+    //AiMovementTree newnode = createNode(board);
+    //root = newnode;
 }
 
 AiMovementTree * insert(TPiece board[8][8], AiMovementTree **tree)
