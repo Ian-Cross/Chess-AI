@@ -88,21 +88,3 @@ bool stalemate(TPiece someBoard[8][8], bool aiTurn)
     if(stalemate50==50) return true; //return true if 50 move rule has been reached
     return false; //return false
 }
-
-//function to see if white is checkmated
-bool whiteincheckmate(someBoard)
-{
-    //if white's turn, white in check and no legal moves, return true
-    if(WhiteTurn == true and numMovesWhite(someBoard) == 0 and CheckForCheck(30) == true)
-        return true;
-    return false; //return false if checkmate hasn't occured
-}
-
-//function to see if black is checkmated
-bool blackincheckmate(someBoard)
-{
-    //if blacks's turn, black in check and no legal moves, return true
-    if(WhiteTurn == false and numMovesBlack(someBoard) == 0 and CheckForCheck(31) == true)
-        return true;
-    return false;  //return false if checkmate hasn't occured
-}
