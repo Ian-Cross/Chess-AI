@@ -89,7 +89,7 @@ bool IsvalidMove(int selectedPiece,bool AiTurn); //Tests if the move the user wa
 bool CheckForCheck (int KingColour); //Checks if the move cause either player to be in check
 int PieceTake(int selectedpiece); //Moves the taken piece off the board;
 void assignValues(TPiece WhatPiece,int Rectx,int Recty,string path,int i,bool isWhite,vector <PieceMove> moves);
-Boards GenerateMoveSet(col Board, bool WhiteMoves,int *NumberOfMoves);
+Boards GenerateMoveSet(col Board, bool WhiteMoves,int *NumberOfMoves,int *CurrentPiece,int *TakenPiece);
 col UpdateBoard(col Board);
 void updateScreen(col Board);
 bool WhiteInCheckmate();
@@ -97,6 +97,7 @@ bool BlackInCheckmate();
 int evaluate(col Board, bool AiTurn);
 bool stalemate(col Board);
 bool AiMove();
+void Render();
 
 void StartSDL (); //Starts up and initalizes everything in SDL
 void CloseSDL (); //Closes down and deletes everything in SDL
@@ -197,7 +198,7 @@ int main(int argc, char* args[])
                                     Pieces[TakenPiece].Rect = Pieces[TakenPiece].OldLocation;
                                 }
                             }
-                            cout << "White is in check" << endl;
+                            //cout << "White is in check" << endl;
                         }
                         if (CheckForCheck(31))
                         {
@@ -212,7 +213,7 @@ int main(int argc, char* args[])
                                     Pieces[TakenPiece].Rect = Pieces[TakenPiece].OldLocation;
                                 }
                             }
-                            cout << "Black is in check" << endl;
+                            //cout << "Black is in check" << endl;
                         }
 
                         if (TurnChange)
@@ -223,7 +224,7 @@ int main(int argc, char* args[])
                             PredictedMoves.CurrentBoard = updatedBoard;
                             PredictedMoves.value = evaluate(PredictedMoves.CurrentBoard,false);
                             updateScreen(PredictedMoves.CurrentBoard);
-                            cout << "Value of Board: " << PredictedMoves.value << endl;
+                            //cout << "Value of Board: " << PredictedMoves.value << endl;
                             PredictedMoves.CurrentPiece = SelectedPiece;
                             PredictedMoves.TakenPiece = TakenPiece;
                         }
@@ -510,6 +511,16 @@ void SetPositions()
 
 }
 
+void Render()
+{
+    SDL_RenderClear(Renderer);
+
+    for (int i = 0; i < 32; i++)
+        SDL_RenderCopy(Renderer,Pieces[i].Texture,NULL,&Pieces[i].Rect);
+
+    SDL_RenderPresent(Renderer);
+}
+
 void PieceSnapToSquare (int selectedPiece,int mousex,int mousey)
 {
     for (int i = 0; i <= 7; i++)
@@ -591,9 +602,6 @@ col UpdateBoard(col Board)
 {
     Board.clear();
 
-    int xtrack = 0;
-    int ytrack = 0;
-
     for (int x = 0; x < 8; x++)
     {
         row temp;
@@ -609,7 +617,8 @@ col UpdateBoard(col Board)
 
 void updateScreen(col Board)
 {
-    ivec recentlymoved;
+    ivec MovedAlready;
+
     for (int x = 0; x < 8; x ++)
     {
         for (int y = 0; y < 8; y++)
@@ -617,17 +626,20 @@ void updateScreen(col Board)
             for (int i = 0; i < 32; i++)
             {
                 bool skip = false;
-                int Num = recentlymoved.size();
-                for (int p = 0; p < Num; p++)
-                    if (recentlymoved[p] == i) skip = true;
-
-                if (PredictedMoves.CurrentBoard[x][y] == Pieces[i].TypeOfPiece && !skip)
+                int num = MovedAlready.size();
+                for (int j = 0; j < num; j++)
+                    if (MovedAlready[j] == i) skip = true;
+                if (!skip)
                 {
-                    Pieces[i].Rect.x = x*SquareSize+Offset;
-                    Pieces[i].Rect.y = y*SquareSize+Offset;
-                    recentlymoved.push_back(i);
-                    break;
+                    if (Pieces[i].TypeOfPiece == Board[x][y])
+                    {
+                        Pieces[i].Rect.x = x*SquareSize+Offset;
+                        Pieces[i].Rect.y = y*SquareSize+Offset;
+                        MovedAlready.push_back(i);
+                        break;
+                    }
                 }
+
             }
         }
     }
@@ -1167,34 +1179,39 @@ int badPawnsWhite(TPiece someBoard[8][8])
 AiMovementTree FindBestMove (AiMovementTree node, bool aiTurn,int depth)
 {
     int NumberOfMoves;
+    int CurrentPiece;
+    int TakenPiece;
     Boards BoardMovements;
 
-    if(depth <= 4) //if the max depth hasn't been reached, then add moves to tree
+    if(depth <= 3) //if the max depth hasn't been reached, then add moves to tree
     {
-        cout << "Stating to calculate" << endl;
-        cout << node.CurrentBoard << endl;
-        BoardMovements = GenerateMoveSet(node.CurrentBoard,aiTurn,&NumberOfMoves); //calls the funtcion that create variable possibleMoves
-        cout << NumberOfMoves << " Moves Genrated" << endl;
-        for (int i = 1; i < NumberOfMoves; i++)
+        //cout << "Stating to calculate" << endl;
+        //cout << node.CurrentBoard << endl;
+        BoardMovements = GenerateMoveSet(node.CurrentBoard,aiTurn,&NumberOfMoves,&CurrentPiece,&TakenPiece); //calls the funtcion that create variable possibleMoves
+        //cout << NumberOfMoves << " Moves Genrated" << endl;
+        for (int i = 0; i < NumberOfMoves; i++)
         {
             col CurrentBoard;
             CurrentBoard = BoardMovements[i];
             AiMovementTree newMove;
             newMove.CurrentBoard = CurrentBoard;
-            cout << newMove.CurrentBoard << endl;
-            SDL_Delay(1000);
             node.FutureMoves.push_back(newMove);
         }
-        cout << "Tree Up Dated " << endl;
-        SDL_Delay(3000);
+        //cout << "Tree Up Dated " << endl;
     }
     depth++; //increase the depth
 
     if(node.FutureMoves.size()!=0) //if the node has children
     {
+        //cout << "The node has children" << endl;
         int num = node.FutureMoves.size();
-        for(int x = 1; x < num; x++)
-            node.FutureMoves[x] = FindBestMove(node.FutureMoves[x],!aiTurn,depth); //recursively searching the tree
+        for(int x = 0; x < num; x++)
+        {
+            AiMovementTree Recursive;
+            Recursive = node.FutureMoves[x];
+            node.FutureMoves[x] = FindBestMove(Recursive,!aiTurn,depth); //recursively searching the tree
+        }
+
     }
     else //if the node has no children, find a value for its board
     {
@@ -1204,64 +1221,35 @@ AiMovementTree FindBestMove (AiMovementTree node, bool aiTurn,int depth)
 
     if(aiTurn) //if it's the ai's turn
     {
-        node.value=-best; //set best value to the worst possible
+        node.value=best; //set best value to the worst possible
         //look through all the moves associated the the node
-        for(int x = 0; x < node.FutureMoves.size(); x++)
+        for(int x = 0; x < (int)node.FutureMoves.size(); x++)
         {
             //keep the highest value
-            if(node.FutureMoves[x].value > node.value)
+            if(node.FutureMoves[x].value < node.value)
             {
                 node.value = node.FutureMoves[x].value;
-                if(depth > 1)
-                {
-                    for (int i = 0; i < 8; i++)
-                    {
-                        row temp;
-                        for (int j = 0; j < 8; j++)
-                        {
-                            AiMovementTree future;
-                            future = node.FutureMoves[x];
-                            col tempBoard = future.CurrentBoard;
-                            temp.push_back(tempBoard[i][j]);
-                        }
-                        node.CurrentBoard.push_back(temp);
-                    }
-                }
+                //node.CurrentBoard = node.FutureMoves[x].CurrentBoard;
             }
         }
         //remove all children from the node
-        for(int x = 0; x < node.FutureMoves.size(); x++)
+        for(int x = 0; x < (int)node.FutureMoves.size(); x++)
             node.FutureMoves.pop_back();
     }
     else //if it is not the ai's turn
     {
-        node.value=best; //set value to best
-        for(int x = 0; x < node.FutureMoves.size(); x++)
+        node.value=-best; //set value to best
+        for(int x = 0; x < (int)node.FutureMoves.size(); x++)
         {
             //keep the lowest possible value
-            if(node.FutureMoves[x].value < node.value)
+            if(node.FutureMoves[x].value > node.value)
             {
                 node.value = node.FutureMoves[x].value;
-                if(depth > 1)
-                {
-                    for (int i = 0; i < 8; i++)
-                    {
-                        row temp;
-                        for (int j = 0; j < 8; j++)
-                        {
-                            AiMovementTree future;
-                            future = node.FutureMoves[x];
-                            col tempBoard = future.CurrentBoard;
-                            temp.push_back(tempBoard[i][j]);
-                        }
-                        node.CurrentBoard.push_back(temp);
-                    }
-                }
-
+                node.CurrentBoard = node.FutureMoves[x].CurrentBoard;
             }
         }
         //remove all the children from the node
-        for(int x = 0; x < node.FutureMoves.size(); x++)
+        for(int x = 0; x < (int)node.FutureMoves.size(); x++)
             node.FutureMoves.pop_back();
     }
     return node;
@@ -1293,13 +1281,17 @@ int evaluate(col Board, bool AiTurn)
     //add 2 points for every square the AI can move to, subtract 2 for the square the opponent can move to
     int NumberBMoves;
     int NumberWMoves;
-    GenerateMoveSet(Board,false,&NumberBMoves);
-    GenerateMoveSet(Board,true,&NumberWMoves);
+    int CurrentPiece;
+    int TakenPiece;
+    //cout << "Evaluation Generating" << endl;
+    GenerateMoveSet(Board,false,&NumberBMoves,&CurrentPiece,&TakenPiece);
+    GenerateMoveSet(Board,true,&NumberWMoves,&CurrentPiece,&TakenPiece);
+    //cout << "Done Evaluating" << endl;
 
     evaluation += (NumberBMoves - NumberWMoves)*2;
 
-    cout << "Number of Black Moves: " << NumberBMoves << endl;
-    cout << "Number of White Moves: " << NumberWMoves << endl;
+    // cout << "Number of Black Moves: " << NumberBMoves << endl;
+    //cout << "Number of White Moves: " << NumberWMoves << endl;
 
     //subtract 5 points for the AI's bad pawns, add 5 points for the opponent's bad pawns
     //evaluation -= (badPawnsBlack(Board) - badPawnsWhite(Board))*5;
@@ -1316,21 +1308,22 @@ int evaluate(col Board, bool AiTurn)
     return evaluation; //return evaluation of board
 }
 
-Boards GenerateMoveSet(col Board, bool WhiteMoves,int *NumberOfMoves)
+Boards GenerateMoveSet(col Board, bool WhiteMoves,int *NumberOfMoves,int *CurrentPiece,int *TakenPiece)
 {
     Boards PossibleMoves;
     PossibleMoves.clear();
     col newboard;
-    TPiece OldBoard[8][8];
+    col OldBoard;
 
     updateScreen(Board);
+//    Render();
+//    cout << "Current Generating Board" << endl;
+//    cout << Board << endl;
 
     for (int i = 0; i < 32; i++)
         Pieces[i].OldLocation = Pieces[i].Rect;
 
-    for (int i = 0; i < 8; i++)
-        for (int j = 0; j < 8; j++)
-            OldBoard[i][j] = Board[i][j];
+    OldBoard = Board;
 
     int PieceNumbers[16] = {};
 
@@ -1414,7 +1407,6 @@ Boards GenerateMoveSet(col Board, bool WhiteMoves,int *NumberOfMoves)
                             newboard.push_back(temp);
                         }
                         PossibleMoves.push_back(newboard);
-                        cout << newboard << endl;
                         TurnChange = false;
                         newboard.clear();
                     }
@@ -1480,18 +1472,18 @@ bool CheckForCheck(int KingColour)
         {
             if ((Pieces[Match].TypeOfPiece == whiterook || Pieces[Match].TypeOfPiece == blackrook) && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
             {
-                if (Pieces[Match].IsWhite) cout << "White ";
-                else cout << "Black ";
-                cout << "Rook Check up" << endl;
-                cout << "( " << Kingx << " , " << checky << " )" << endl;
+//                if (Pieces[Match].IsWhite) cout << "White ";
+//                else cout << "Black ";
+//                cout << "Rook Check up" << endl;
+//                cout << "( " << Kingx << " , " << checky << " )" << endl;
                 return true;
             }
             if ((Pieces[Match].TypeOfPiece == whitequeen || Pieces[Match].TypeOfPiece == blackqueen) && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
             {
-                if (Pieces[Match].IsWhite) cout << "White ";
-                else cout << "Black ";
-                cout << "Queen Check up" << endl;
-                cout << "( " << Kingx << " , " << checky << " )" << endl;
+//                if (Pieces[Match].IsWhite) cout << "White ";
+//                else cout << "Black ";
+//                cout << "Queen Check up" << endl;
+//                cout << "( " << Kingx << " , " << checky << " )" << endl;
                 return true;
             }
             break;
@@ -1506,18 +1498,18 @@ bool CheckForCheck(int KingColour)
         {
             if ((Pieces[Match].TypeOfPiece == whiterook || Pieces[Match].TypeOfPiece == blackrook) && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
             {
-                if (Pieces[Match].IsWhite) cout << "White ";
-                else cout << "Black ";
-                cout << "Rook Check Down" << endl;
-                cout << "( " << Kingx << " , " << checky << " )" << endl;
+//                if (Pieces[Match].IsWhite) cout << "White ";
+//                else cout << "Black ";
+//                cout << "Rook Check Down" << endl;
+//                cout << "( " << Kingx << " , " << checky << " )" << endl;
                 return true;
             }
             if ((Pieces[Match].TypeOfPiece == whitequeen || Pieces[Match].TypeOfPiece == blackqueen) && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
             {
-                if (Pieces[Match].IsWhite) cout << "White ";
-                else cout << "Black ";
-                cout << "Queen Check Down" << endl;
-                cout << "( " << Kingx << " , " << checky << " )" << endl;
+//                if (Pieces[Match].IsWhite) cout << "White ";
+//                else cout << "Black ";
+//                cout << "Queen Check Down" << endl;
+//                cout << "( " << Kingx << " , " << checky << " )" << endl;
                 return true;
             }
             break;
@@ -1532,18 +1524,18 @@ bool CheckForCheck(int KingColour)
         {
             if ((Pieces[Match].TypeOfPiece == whiterook || Pieces[Match].TypeOfPiece == blackrook) && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
             {
-                if (Pieces[Match].IsWhite) cout << "White ";
-                else cout << "Black ";
-                cout << "Rook Check Left" << endl;
-                cout << "( " << checkx << " , " << Kingy << " )" << endl;
+//                if (Pieces[Match].IsWhite) cout << "White ";
+//                else cout << "Black ";
+//                cout << "Rook Check Left" << endl;
+//                cout << "( " << checkx << " , " << Kingy << " )" << endl;
                 return true;
             }
             if ((Pieces[Match].TypeOfPiece == whitequeen || Pieces[Match].TypeOfPiece == blackqueen) && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
             {
-                if (Pieces[Match].IsWhite) cout << "White ";
-                else cout << "Black ";
-                cout << "Queen Check Left" << endl;
-                cout << "( " << checkx << " , " << Kingy << " )" << endl;
+//                if (Pieces[Match].IsWhite) cout << "White ";
+//                else cout << "Black ";
+//                cout << "Queen Check Left" << endl;
+//                cout << "( " << checkx << " , " << Kingy << " )" << endl;
                 return true;
             }
             break;
@@ -1558,18 +1550,18 @@ bool CheckForCheck(int KingColour)
         {
             if ((Pieces[Match].TypeOfPiece == whiterook || Pieces[Match].TypeOfPiece == blackrook) && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
             {
-                if (Pieces[Match].IsWhite) cout << "White ";
-                else cout << "Black ";
-                cout << "Rook Check Right" << endl;
-                cout << "( " << checkx << " , " << Kingy << " )" << endl;
+//                if (Pieces[Match].IsWhite) cout << "White ";
+//                else cout << "Black ";
+//                cout << "Rook Check Right" << endl;
+//                cout << "( " << checkx << " , " << Kingy << " )" << endl;
                 return true;
             }
             if ((Pieces[Match].TypeOfPiece == whitequeen || Pieces[Match].TypeOfPiece == blackqueen) && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
             {
-                if (Pieces[Match].IsWhite) cout << "White ";
-                else cout << "Black ";
-                cout << "Queen Check Right" << endl;
-                cout << "( " << checkx << " , " << Kingy << " )" << endl;
+//                if (Pieces[Match].IsWhite) cout << "White ";
+//                else cout << "Black ";
+//                cout << "Queen Check Right" << endl;
+//                cout << "( " << checkx << " , " << Kingy << " )" << endl;
                 return true;
             }
             break;
@@ -1586,24 +1578,24 @@ bool CheckForCheck(int KingColour)
         {
             if ((Pieces[Match].TypeOfPiece == whitepawn || Pieces[Match].TypeOfPiece == blackpawn) && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite && checkx == Kingx-SquareSize && checky == Kingy-SquareSize && Pieces[Match].IsWhite == false)
             {
-                if (Pieces[Match].IsWhite) cout << "White ";
-                else cout << "Black ";
-                cout << "Pawn Check up Left" << endl;
+//                if (Pieces[Match].IsWhite) cout << "White ";
+//                else cout << "Black ";
+//                cout << "Pawn Check up Left" << endl;
                 return true;
             }
 
             if ((Pieces[Match].TypeOfPiece == whitebishop || Pieces[Match].TypeOfPiece == blackbishop) && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
             {
-                if (Pieces[Match].IsWhite) cout << "White ";
-                else cout << "Black ";
-                cout << "bishop Check up Left" << endl;
+//                if (Pieces[Match].IsWhite) cout << "White ";
+//                else cout << "Black ";
+//                cout << "bishop Check up Left" << endl;
                 return true;
             }
             if ((Pieces[Match].TypeOfPiece == whitequeen || Pieces[Match].TypeOfPiece == blackqueen) && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
             {
-                if (Pieces[Match].IsWhite) cout << "White ";
-                else cout << "Black ";
-                cout << "queen Check up Left" << endl;
+//                if (Pieces[Match].IsWhite) cout << "White ";
+//                else cout << "Black ";
+//                cout << "queen Check up Left" << endl;
                 return true;
             }
             break;
@@ -1621,24 +1613,24 @@ bool CheckForCheck(int KingColour)
         {
             if ((Pieces[Match].TypeOfPiece == whitepawn || Pieces[Match].TypeOfPiece == blackpawn) && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite && checkx == Kingx+SquareSize && checky == Kingy-SquareSize && Pieces[Match].IsWhite == false)
             {
-                if (Pieces[Match].IsWhite) cout << "White ";
-                else cout << "Black ";
-                cout << "Pawn Check up Right" << endl;
+//                if (Pieces[Match].IsWhite) cout << "White ";
+//                else cout << "Black ";
+//                cout << "Pawn Check up Right" << endl;
                 return true;
             }
 
             if ((Pieces[Match].TypeOfPiece == whitebishop || Pieces[Match].TypeOfPiece == blackbishop) && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
             {
-                if (Pieces[Match].IsWhite) cout << "White ";
-                else cout << "Black ";
-                cout << "bishop Check up Right" << endl;
+//                if (Pieces[Match].IsWhite) cout << "White ";
+//                else cout << "Black ";
+//                cout << "bishop Check up Right" << endl;
                 return true;
             }
             if ((Pieces[Match].TypeOfPiece == whitequeen || Pieces[Match].TypeOfPiece == blackqueen) && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
             {
-                if (Pieces[Match].IsWhite) cout << "White ";
-                else cout << "Black ";
-                cout << "queen Check up Right" << endl;
+//                if (Pieces[Match].IsWhite) cout << "White ";
+//                else cout << "Black ";
+//                cout << "queen Check up Right" << endl;
                 return true;
             }
             break;
@@ -1656,24 +1648,24 @@ bool CheckForCheck(int KingColour)
         {
             if ((Pieces[Match].TypeOfPiece == whitepawn || Pieces[Match].TypeOfPiece == blackpawn) && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite && checkx == Kingx-SquareSize && checky == Kingy+SquareSize && Pieces[Match].IsWhite == true)
             {
-                if (Pieces[Match].IsWhite) cout << "White ";
-                else cout << "Black ";
-                cout << "Pawn Check Down Left" << endl;
+//                if (Pieces[Match].IsWhite) cout << "White ";
+//                else cout << "Black ";
+//                cout << "Pawn Check Down Left" << endl;
                 return true;
             }
 
             if ((Pieces[Match].TypeOfPiece == whitebishop || Pieces[Match].TypeOfPiece == blackbishop) && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
             {
-                if (Pieces[Match].IsWhite) cout << "White ";
-                else cout << "Black ";
-                cout << "bishop Check Down Left" << endl;
+//                if (Pieces[Match].IsWhite) cout << "White ";
+//                else cout << "Black ";
+//                cout << "bishop Check Down Left" << endl;
                 return true;
             }
             if ((Pieces[Match].TypeOfPiece == whitequeen || Pieces[Match].TypeOfPiece == blackqueen) && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
             {
-                if (Pieces[Match].IsWhite) cout << "White ";
-                else cout << "Black ";
-                cout << "queen Check Down Left" << endl;
+//                if (Pieces[Match].IsWhite) cout << "White ";
+//                else cout << "Black ";
+//                cout << "queen Check Down Left" << endl;
                 return true;
             }
             break;
@@ -1691,24 +1683,24 @@ bool CheckForCheck(int KingColour)
         {
             if ((Pieces[Match].TypeOfPiece == whitepawn || Pieces[Match].TypeOfPiece == blackpawn) && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite && checkx == Kingx+SquareSize && checky == Kingy+SquareSize && Pieces[Match].IsWhite == true)
             {
-                if (Pieces[Match].IsWhite) cout << "White ";
-                else cout << "Black ";
-                cout << "Pawn Check Down Right" << endl;
+//                if (Pieces[Match].IsWhite) cout << "White ";
+//                else cout << "Black ";
+//                cout << "Pawn Check Down Right" << endl;
                 return true;
             }
 
             if ((Pieces[Match].TypeOfPiece == whitebishop || Pieces[Match].TypeOfPiece == blackbishop) && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
             {
-                if (Pieces[Match].IsWhite) cout << "White ";
-                else cout << "Black ";
-                cout << "bishop Check Down Right" << endl;
+//                if (Pieces[Match].IsWhite) cout << "White ";
+//                else cout << "Black ";
+//                cout << "bishop Check Down Right" << endl;
                 return true;
             }
             if ((Pieces[Match].TypeOfPiece == whitequeen || Pieces[Match].TypeOfPiece == blackqueen) && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite)
             {
-                if (Pieces[Match].IsWhite) cout << "White ";
-                else cout << "Black ";
-                cout << "queen Check Down Right" << endl;
+//                if (Pieces[Match].IsWhite) cout << "White ";
+//                else cout << "Black ";
+//                cout << "queen Check Down Right" << endl;
                 return true;
             }
             break;
@@ -1726,9 +1718,9 @@ bool CheckForCheck(int KingColour)
         int AttackingPiece = FindMatch(Kingx+knightXMove[i]*SquareSize,Kingy+knightYMove[i]*SquareSize,KingColour);
         if ((Pieces[AttackingPiece].TypeOfPiece == whiteknight || Pieces[AttackingPiece].TypeOfPiece == blackknight) && Pieces[AttackingPiece].IsWhite != Pieces[KingColour].IsWhite)
         {
-            if (Pieces[AttackingPiece].IsWhite) cout << "White ";
-            else cout << "Black ";
-            cout << "Knight check ( " << knightXMove[i] << " , " << knightYMove[i] << " )" << endl;
+//            if (Pieces[AttackingPiece].IsWhite) cout << "White ";
+//            else cout << "Black ";
+//            cout << "Knight check ( " << knightXMove[i] << " , " << knightYMove[i] << " )" << endl;
             return true;
         }
     }
@@ -1821,36 +1813,10 @@ bool AiMove()
 {
     cout << "AI Turn" << endl;
     Boards PossibleMoves;
-    int NumberOfMoves;
     AiMovementTree BlackMove;
     BlackMove = FindBestMove(PredictedMoves,false,1);
-
-    vector <int> recentlymoved;
-
-    recentlymoved.clear();
-
-    for (int x = 0; x < 8; x ++)
-    {
-        for (int y = 0; y < 8; y++)
-        {
-            for (int i = 0; i < 32; i++)
-            {
-                bool skip = false;
-                int Num = recentlymoved.size();
-                for (int p = 0; p < Num; p++)
-                    if (recentlymoved[p] == i) skip = true;
-
-                if (BlackMove.CurrentBoard[x][y] == Pieces[i].TypeOfPiece && !skip)
-                {
-                    Pieces[i].Rect.x = x*SquareSize+Offset;
-                    Pieces[i].Rect.y = y*SquareSize+Offset;
-                    recentlymoved.push_back(i);
-                    break;
-                }
-            }
-        }
-    }
-
+    cout << BlackMove.CurrentBoard << endl;
+    updateScreen(BlackMove.CurrentBoard);
     return true;
 }
 
