@@ -9,17 +9,20 @@ using namespace std;
 
 typedef enum {blank,whitepawn,whiterook,whiteknight,whitebishop,whiteking,whitequeen,blackpawn,blackrook,blackknight,blackbishop,blackking,blackqueen} TPiece; //defining the types of pieces
 typedef vector <int> ivec;
+
+//Creates types to hold a variable number of 2 dimensional vectors
 typedef vector <TPiece> row;
 typedef vector <row> col;
 typedef vector <col> Boards;
 
+//A structure to hold the specific moves of a piece
 struct PieceMove
 {
     int x;
     int y;
 };
 
-//creating PieceInfo structure
+//A structure to hold
 struct PieceInfo
 {
     TPiece TypeOfPiece; //Determines the piece
@@ -29,8 +32,6 @@ struct PieceInfo
     SDL_Rect OldLocation; //Hold the previous Co-ordinates
     SDL_Texture* Texture; //Picture of the piece
     bool IsTaken; //Tells the program when and what pieces have been removed from the board;
-    int xMovement[8];
-    int yMovement[8];
     vector <PieceMove> moves;
 };
 
@@ -89,12 +90,12 @@ bool IsvalidMove(int selectedPiece,bool AiTurn); //Tests if the move the user wa
 bool CheckForCheck (int KingColour); //Checks if the move cause either player to be in check
 int PieceTake(int selectedpiece); //Moves the taken piece off the board;
 void assignValues(TPiece WhatPiece,int Rectx,int Recty,string path,int i,bool isWhite,vector <PieceMove> moves);
-Boards GenerateMoveSet(col Board, bool WhiteMoves,int *NumberOfMoves,int *CurrentPiece,int *TakenPiece);
+vector <AiMovementTree> GenerateMoveSet(col Board, bool WhiteMoves,int *NumberOfMoves);
 col UpdateBoard(col Board);
 void updateScreen(col Board);
 bool WhiteInCheckmate();
 bool BlackInCheckmate();
-int evaluate(col Board, bool AiTurn);
+int evaluate(col Board, bool AiTurn,int Taken);
 bool stalemate(col Board);
 bool AiMove();
 void Render();
@@ -179,11 +180,10 @@ int main(int argc, char* args[])
                         Pieces[SelectedPiece].Rect = Pieces[SelectedPiece].OldLocation;
                     else
                     {
+                        int TakenPiece = PieceTake(SelectedPiece);
                         bool TurnChange = true;
                         BlackInCheck = false;
                         WhiteInCheck = false;
-
-                        int TakenPiece = PieceTake(SelectedPiece);
 
                         if (CheckForCheck(30))
                         {
@@ -198,8 +198,10 @@ int main(int argc, char* args[])
                                     Pieces[TakenPiece].Rect = Pieces[TakenPiece].OldLocation;
                                 }
                             }
-                            //cout << "White is in check" << endl;
+                            cout << "White is in check" << endl;
                         }
+
+
                         if (CheckForCheck(31))
                         {
                             BlackInCheck = true;
@@ -213,7 +215,7 @@ int main(int argc, char* args[])
                                     Pieces[TakenPiece].Rect = Pieces[TakenPiece].OldLocation;
                                 }
                             }
-                            //cout << "Black is in check" << endl;
+                            cout << "Black is in check" << endl;
                         }
 
                         if (TurnChange)
@@ -222,9 +224,7 @@ int main(int argc, char* args[])
                             WhiteTurn = !WhiteTurn;
                             col updatedBoard = UpdateBoard(board);
                             PredictedMoves.CurrentBoard = updatedBoard;
-                            PredictedMoves.value = evaluate(PredictedMoves.CurrentBoard,false);
-                            updateScreen(PredictedMoves.CurrentBoard);
-                            //cout << "Value of Board: " << PredictedMoves.value << endl;
+                            PredictedMoves.value = evaluate(PredictedMoves.CurrentBoard,false,TakenPiece);
                             PredictedMoves.CurrentPiece = SelectedPiece;
                             PredictedMoves.TakenPiece = TakenPiece;
                         }
@@ -581,10 +581,11 @@ int PieceTake(int selectedPiece)
         Pieces[beingTaken].OldLocation = Pieces[beingTaken].Rect;
         if (Pieces[selectedPiece].IsWhite != Pieces[beingTaken].IsWhite)
         {
-            Pieces[beingTaken].Rect.x = 8*SquareSize + Offset;
-            Pieces[beingTaken].Rect.y = Offset;
+            Pieces[beingTaken].Rect.x = 900;
+            Pieces[beingTaken].Rect.y = 50;
             Pieces[selectedPiece].FirstMove = false;
             Pieces[beingTaken].IsTaken = true;
+            Pieces[beingTaken].FirstMove = false;
             return beingTaken;
         }
         else
@@ -594,7 +595,6 @@ int PieceTake(int selectedPiece)
             return -2;
         }
     }
-
     return -1;
 }
 
@@ -608,6 +608,7 @@ col UpdateBoard(col Board)
         for (int y = 0; y < 8; y++)
         {
             int i = FindMatch(x*SquareSize+Offset,y*SquareSize+Offset,-1);
+            if (Pieces[i].IsTaken)continue;
             temp.push_back(Pieces[i].TypeOfPiece);
         }
         Board.push_back(temp);
@@ -625,6 +626,7 @@ void updateScreen(col Board)
         {
             for (int i = 0; i < 32; i++)
             {
+                if (Pieces[i].IsTaken)continue;
                 bool skip = false;
                 int num = MovedAlready.size();
                 for (int j = 0; j < num; j++)
@@ -639,7 +641,6 @@ void updateScreen(col Board)
                         break;
                     }
                 }
-
             }
         }
     }
@@ -1179,25 +1180,20 @@ int badPawnsWhite(TPiece someBoard[8][8])
 AiMovementTree FindBestMove (AiMovementTree node, bool aiTurn,int depth)
 {
     int NumberOfMoves;
-    int CurrentPiece;
-    int TakenPiece;
-    Boards BoardMovements;
+    vector <AiMovementTree> BoardMovements;
 
-    if(depth <= 3) //if the max depth hasn't been reached, then add moves to tree
+    if(depth <= 2) //if the max depth hasn't been reached, then add moves to tree
     {
-        //cout << "Stating to calculate" << endl;
-        //cout << node.CurrentBoard << endl;
-        BoardMovements = GenerateMoveSet(node.CurrentBoard,aiTurn,&NumberOfMoves,&CurrentPiece,&TakenPiece); //calls the funtcion that create variable possibleMoves
-        //cout << NumberOfMoves << " Moves Genrated" << endl;
+        //calls the funtcion that create variable possibleMoves
+        BoardMovements = GenerateMoveSet(node.CurrentBoard,aiTurn,&NumberOfMoves);
         for (int i = 0; i < NumberOfMoves; i++)
         {
-            col CurrentBoard;
+            AiMovementTree CurrentBoard;
             CurrentBoard = BoardMovements[i];
             AiMovementTree newMove;
-            newMove.CurrentBoard = CurrentBoard;
+            newMove = CurrentBoard;
             node.FutureMoves.push_back(newMove);
         }
-        //cout << "Tree Up Dated " << endl;
     }
     depth++; //increase the depth
 
@@ -1215,7 +1211,7 @@ AiMovementTree FindBestMove (AiMovementTree node, bool aiTurn,int depth)
     }
     else //if the node has no children, find a value for its board
     {
-        node.value = evaluate(node.CurrentBoard,aiTurn);
+        node.value = evaluate(node.CurrentBoard,aiTurn,-1);
         return node; //return node, since no children
     }
 
@@ -1229,7 +1225,6 @@ AiMovementTree FindBestMove (AiMovementTree node, bool aiTurn,int depth)
             if(node.FutureMoves[x].value < node.value)
             {
                 node.value = node.FutureMoves[x].value;
-                //node.CurrentBoard = node.FutureMoves[x].CurrentBoard;
             }
         }
         //remove all children from the node
@@ -1246,6 +1241,8 @@ AiMovementTree FindBestMove (AiMovementTree node, bool aiTurn,int depth)
             {
                 node.value = node.FutureMoves[x].value;
                 node.CurrentBoard = node.FutureMoves[x].CurrentBoard;
+                node.TakenPiece = node.FutureMoves[x].TakenPiece;
+                node.CurrentPiece = node.FutureMoves[x].CurrentPiece;
             }
         }
         //remove all the children from the node
@@ -1257,9 +1254,21 @@ AiMovementTree FindBestMove (AiMovementTree node, bool aiTurn,int depth)
 
 //this function evaluates a board posistion and assigns a value based on the the following criteria:
 //material, mobility(# of squares you can move to), bad pawns, and set values for stalemate and checkmate
-int evaluate(col Board, bool AiTurn)
+int evaluate(col Board, bool AiTurn,int Taken)
 {
     int evaluation = 0; //value to return, starts at zero
+
+    //if stalemate, return 0
+    if(stalemate(Board))
+        return 0;
+
+    //AI won by checkmate, return best possible value
+    if(WhiteInCheckmate())
+        return best;
+    //AI lost by checkmate, return worst possible value
+    if(BlackInCheckmate())
+        return -best;
+
     //double loops to look through the entire board
     for(int x = 0; x < 8; x++)
     {
@@ -1281,49 +1290,35 @@ int evaluate(col Board, bool AiTurn)
     //add 2 points for every square the AI can move to, subtract 2 for the square the opponent can move to
     int NumberBMoves;
     int NumberWMoves;
-    int CurrentPiece;
-    int TakenPiece;
-    //cout << "Evaluation Generating" << endl;
-    GenerateMoveSet(Board,false,&NumberBMoves,&CurrentPiece,&TakenPiece);
-    GenerateMoveSet(Board,true,&NumberWMoves,&CurrentPiece,&TakenPiece);
-    //cout << "Done Evaluating" << endl;
 
-    evaluation += (NumberBMoves - NumberWMoves)*2;
+    GenerateMoveSet(Board,false,&NumberBMoves);
+    GenerateMoveSet(Board,true,&NumberWMoves);
 
-    // cout << "Number of Black Moves: " << NumberBMoves << endl;
-    //cout << "Number of White Moves: " << NumberWMoves << endl;
+    NumberBlackMoves = NumberBMoves;
+    NumberWhiteMoves = NumberWMoves;
+
+    evaluation += (NumberBMoves - NumberWMoves)/4;
 
     //subtract 5 points for the AI's bad pawns, add 5 points for the opponent's bad pawns
     //evaluation -= (badPawnsBlack(Board) - badPawnsWhite(Board))*5;
-    //if stalemate, return 0
-    if(stalemate(Board))
-        return 0;
-
-    //AI won by checkmate, return best possible value
-    if(WhiteInCheckmate())
-        return best;
-    //AI lost by checkmate, return worst possible value
-    if(BlackInCheckmate())
-        return -best;
     return evaluation; //return evaluation of board
 }
 
-Boards GenerateMoveSet(col Board, bool WhiteMoves,int *NumberOfMoves,int *CurrentPiece,int *TakenPiece)
+vector <AiMovementTree> GenerateMoveSet(col Board, bool WhiteMoves,int *NumberOfMoves)
 {
-    Boards PossibleMoves;
-    PossibleMoves.clear();
+    vector <AiMovementTree> PossibleMoves;
     col newboard;
     col OldBoard;
 
+    OldBoard = Board;
+
     updateScreen(Board);
-//    Render();
-//    cout << "Current Generating Board" << endl;
-//    cout << Board << endl;
 
     for (int i = 0; i < 32; i++)
+    {
+        if (Pieces[i].IsTaken) continue;
         Pieces[i].OldLocation = Pieces[i].Rect;
-
-    OldBoard = Board;
+    }
 
     int PieceNumbers[16] = {};
 
@@ -1343,14 +1338,14 @@ Boards GenerateMoveSet(col Board, bool WhiteMoves,int *NumberOfMoves,int *Curren
     for (int i = 0; i < 16; i++)
     {
         int MovingPiece = PieceNumbers[i];
-        if (Pieces[MovingPiece].IsTaken == true) continue;
+        if (Pieces[MovingPiece].IsTaken) continue;
 
         for (int j = 0; j < 8; j++)
         {
             for (int k = 0; k < 8; k++)
             {
-                Pieces[MovingPiece].Rect.x = j*SquareSize + Offset;
-                Pieces[MovingPiece].Rect.y = k*SquareSize + Offset;
+                Pieces[MovingPiece].Rect.x = k*SquareSize + Offset;
+                Pieces[MovingPiece].Rect.y = j*SquareSize + Offset;
 
                 if (Pieces[MovingPiece].OldLocation.x == Pieces[MovingPiece].Rect.x && Pieces[MovingPiece].OldLocation.y == Pieces[MovingPiece].Rect.y ) continue;
 
@@ -1389,12 +1384,13 @@ Boards GenerateMoveSet(col Board, bool WhiteMoves,int *NumberOfMoves,int *Curren
 
                     if (TurnChange && ToTake != -2)
                     {
-                        col UpdatedBoard = UpdateBoard(Board);
                         if (ToTake >= 0)
                         {
                             Pieces[ToTake].IsTaken = false;
                             Pieces[ToTake].Rect = Pieces[ToTake].OldLocation;
                         }
+
+                        col UpdatedBoard = UpdateBoard(Board);
 
                         for (int l = 0; l < 8; l++)
                         {
@@ -1406,7 +1402,11 @@ Boards GenerateMoveSet(col Board, bool WhiteMoves,int *NumberOfMoves,int *Curren
                             }
                             newboard.push_back(temp);
                         }
-                        PossibleMoves.push_back(newboard);
+                        AiMovementTree BoardHolder;
+                        BoardHolder.CurrentBoard = newboard;
+                        BoardHolder.CurrentPiece = MovingPiece;
+                        BoardHolder.TakenPiece = ToTake;
+                        PossibleMoves.push_back(BoardHolder);
                         TurnChange = false;
                         newboard.clear();
                     }
@@ -1417,7 +1417,11 @@ Boards GenerateMoveSet(col Board, bool WhiteMoves,int *NumberOfMoves,int *Curren
     }
 
     for (int i = 0; i < 32; i++)
+    {
+        if (Pieces[i].IsTaken) continue;
         Pieces[i].Rect = Pieces[i].OldLocation;
+    }
+
 
     *NumberOfMoves = PossibleMoves.size();
     updateScreen(Board);
@@ -1811,12 +1815,30 @@ bool stalemate(col Board)
 
 bool AiMove()
 {
-    cout << "AI Turn" << endl;
-    Boards PossibleMoves;
+    bool FirstMoveHolder[32];
+
+    for (int i = 0; i < 32; i++) FirstMoveHolder[i] = Pieces[i].FirstMove;
+
     AiMovementTree BlackMove;
-    BlackMove = FindBestMove(PredictedMoves,false,1);
+    BlackMove = FindBestMove(PredictedMoves,WhiteTurn,1);
+
     cout << BlackMove.CurrentBoard << endl;
     updateScreen(BlackMove.CurrentBoard);
+
+    for (int i = 0; i < 32; i++)
+    {
+        if (i == BlackMove.CurrentPiece) continue;
+        Pieces[i].FirstMove = FirstMoveHolder[i];
+    }
+
+    cout << BlackMove.TakenPiece << endl;
+    if (BlackMove.TakenPiece >= 0)
+    {
+        Pieces[BlackMove.TakenPiece].Rect.x = 8*SquareSize + Offset;
+        Pieces[BlackMove.TakenPiece].Rect.y = Offset;
+        Pieces[BlackMove.CurrentPiece].FirstMove = false;
+        Pieces[BlackMove.TakenPiece].IsTaken = true;
+    }
     return true;
 }
 
