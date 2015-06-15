@@ -609,7 +609,10 @@ col UpdateBoard(col Board)
         {
             int i = FindMatch(x*SquareSize+Offset,y*SquareSize+Offset,-1);
             if (Pieces[i].IsTaken)continue;
-            temp.push_back(Pieces[i].TypeOfPiece);
+            if (i == -1)
+                temp.push_back(blank);
+            else
+                temp.push_back(Pieces[i].TypeOfPiece);
         }
         Board.push_back(temp);
     }
