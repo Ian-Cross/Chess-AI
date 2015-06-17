@@ -4,6 +4,7 @@
 	<File name="main.cpp" open="1" top="1" tabpos="1" split="0" active="1" splitpos="32" zoom_1="1" zoom_2="0">
 		<Cursor>
 <<<<<<< HEAD
+<<<<<<< HEAD
 			<Cursor1 position="10918" topLine="207" />
 		</Cursor>
 		<Folding>
@@ -54,6 +55,11 @@
 			<Cursor1 position="50381" topLine="399" />
 		</Cursor>
 		<Folding>
+=======
+			<Cursor1 position="50381" topLine="399" />
+		</Cursor>
+		<Folding>
+>>>>>>> parent of 96d5804... update
 			<Collapse line="16" />
 			<Collapse line="23" />
 			<Collapse line="37" />
@@ -107,6 +113,9 @@
 			<Collapse line="626" />
 			<Collapse line="633" />
 			<Collapse line="635" />
+<<<<<<< HEAD
+>>>>>>> parent of 96d5804... update
+=======
 >>>>>>> parent of 96d5804... update
 			<Collapse line="649" />
 			<Collapse line="653" />
@@ -190,6 +199,7 @@
 			<Collapse line="1166" />
 			<Collapse line="1177" />
 			<Collapse line="1180" />
+<<<<<<< HEAD
 <<<<<<< HEAD
 			<Collapse line="1189" />
 			<Collapse line="1192" />
@@ -312,6 +322,60 @@
 			<Collapse line="1534" />
 			<Collapse line="1542" />
 			<Collapse line="1555" />
+=======
+			<Collapse line="1187" />
+			<Collapse line="1193" />
+			<Collapse line="1204" />
+			<Collapse line="1208" />
+			<Collapse line="1216" />
+			<Collapse line="1222" />
+			<Collapse line="1226" />
+			<Collapse line="1229" />
+			<Collapse line="1238" />
+			<Collapse line="1241" />
+			<Collapse line="1244" />
+			<Collapse line="1312" />
+			<Collapse line="1322" />
+			<Collapse line="1330" />
+			<Collapse line="1336" />
+			<Collapse line="1343" />
+			<Collapse line="1348" />
+			<Collapse line="1350" />
+			<Collapse line="1357" />
+			<Collapse line="1362" />
+			<Collapse line="1364" />
+			<Collapse line="1368" />
+			<Collapse line="1376" />
+			<Collapse line="1378" />
+			<Collapse line="1382" />
+			<Collapse line="1390" />
+			<Collapse line="1392" />
+			<Collapse line="1400" />
+			<Collapse line="1403" />
+			<Collapse line="1424" />
+			<Collapse line="1436" />
+			<Collapse line="1438" />
+			<Collapse line="1443" />
+			<Collapse line="1447" />
+			<Collapse line="1451" />
+			<Collapse line="1455" />
+			<Collapse line="1459" />
+			<Collapse line="1463" />
+			<Collapse line="1471" />
+			<Collapse line="1477" />
+			<Collapse line="1480" />
+			<Collapse line="1482" />
+			<Collapse line="1490" />
+			<Collapse line="1503" />
+			<Collapse line="1506" />
+			<Collapse line="1508" />
+			<Collapse line="1516" />
+			<Collapse line="1529" />
+			<Collapse line="1532" />
+			<Collapse line="1534" />
+			<Collapse line="1542" />
+			<Collapse line="1555" />
+>>>>>>> parent of 96d5804... update
 			<Collapse line="1558" />
 			<Collapse line="1560" />
 			<Collapse line="1568" />
@@ -355,6 +419,9 @@
 			<Collapse line="1900" />
 			<Collapse line="1906" />
 			<Collapse line="1924" />
+<<<<<<< HEAD
+>>>>>>> parent of 96d5804... update
+=======
 >>>>>>> parent of 96d5804... update
 		</Folding>
 	</File>

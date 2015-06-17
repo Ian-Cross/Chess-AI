@@ -660,11 +660,15 @@ col UpdateBoard(col Board)
             //skips the piece if it has been taken
             if (Pieces[i].IsTaken)continue;
 <<<<<<< HEAD
+<<<<<<< HEAD
             //if there is nothing that matches the square set it to blank
             if (i == -1)
                 temp.push_back(blank);
             else //when there is a matching piece, set the board value acordingly
                 temp.push_back(Pieces[i].TypeOfPiece);
+=======
+            temp.push_back(Pieces[i].TypeOfPiece);
+>>>>>>> parent of 96d5804... update
 =======
             temp.push_back(Pieces[i].TypeOfPiece);
 >>>>>>> parent of 96d5804... update
