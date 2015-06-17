@@ -1700,6 +1700,8 @@ bool CheckForCheck(int KingColour)
         if (Match >= 0)
         {
             cout << Pieces[Match].TypeOfPiece << endl;
+            cout << whiterook << endl;
+            cout << blackrook << endl;
             if ((Pieces[Match].TypeOfPiece == whiterook || Pieces[Match].TypeOfPiece == blackrook) && Pieces[Match].IsWhite != Pieces[KingColour].IsWhite);
             {
                 return true;
